@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a1628">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TuCercanías">
+<meta name="description" content="Sigue en tiempo real los trenes de Cercanías Renfe en España">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>TuCercanías</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --glass-bg: rgba(255,255,255,0.07);
+    --glass-bg-strong: rgba(255,255,255,0.13);
+    --glass-border: rgba(255,255,255,0.18);
+    --glass-border-strong: rgba(255,255,255,0.32);
+    --blur: blur(24px) saturate(180%);
+    --blur-sm: blur(12px) saturate(160%);
+    --accent: #4fc3f7;
+    --accent2: #a78bfa;
+    --accent3: #34d399;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --text: rgba(255,255,255,0.95);
+    --text-secondary: rgba(255,255,255,0.60);
+    --text-tertiary: rgba(255,255,255,0.38);
+    --nav-h: 64px;
+    --safe-bottom: env(safe-area-inset-bottom, 16px);
+    --font: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+    font-family: var(--font);
+    background: #040c1a;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  /* === DESKTOP BLOCKER === */
+  .desktop-block {
+    display: none;
+    position: fixed; inset: 0; z-index: 9999;
+    background: #040c1a;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px; padding: 40px;
+    text-align: center;
+  }
+  .desktop-block svg { opacity: 0.4; }
+  .desktop-block h2 { font-size: 22px; font-weight: 500; color: var(--text); }
+  .desktop-block p { font-size: 15px; color: var(--text-secondary); line-height: 1.6; max-width: 320px; }
+
+  @media (min-width: 1024px) {
+    .desktop-block { display: flex; }
+    .app-shell { display: none !important; }
+  }
+
+  /* === ANIMATED BACKGROUND === */
+  .bg-orbs {
+    position: fixed; inset: 0; z-index: 0;
+    overflow: hidden; pointer-events: none;
+  }
+  .orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(80px);
+    animation: drift 20s ease-in-out infinite;
+  }
+  .orb1 { width: 300px; height: 300px; background: rgba(79,195,247,0.18); top: -80px; left: -60px; animation-delay: 0s; }
+  .orb2 { width: 400px; height: 400px; background: rgba(167,139,250,0.14); bottom: -100px; right: -80px; animation-delay: -7s; }
+  .orb3 { width: 200px; height: 200px; background: rgba(52,211,153,0.12); top: 40%; left: 30%; animation-delay: -12s; }
+  .orb4 { width: 250px; height: 250px; background: rgba(251,191,36,0.08); bottom: 30%; left: -40px; animation-delay: -4s; }
+
+  @keyframes drift {
+    0%,100% { transform: translate(0,0) scale(1); }
+    25% { transform: translate(20px,-30px) scale(1.05); }
+    50% { transform: translate(-15px,20px) scale(0.95); }
+    75% { transform: translate(25px,10px) scale(1.02); }
+  }
+
+  /* === APP SHELL === */
+  .app-shell {
+    position: fixed; inset: 0; z-index: 1;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* === HEADER === */
+  .header {
+    position: relative; z-index: 10;
+    padding: 16px 20px 12px;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    background: rgba(4,12,26,0.4);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border-bottom: 0.5px solid var(--glass-border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-icon {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, #4fc3f7 0%, #a78bfa 100%);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 20px rgba(79,195,247,0.4);
+  }
+  .logo-icon svg { width: 18px; height: 18px; }
+  .logo-text { font-size: 19px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-text span { color: var(--accent); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent3);
+    box-shadow: 0 0 8px var(--accent3);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.85)} }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .refresh-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--glass-bg); border: 0.5px solid var(--glass-border);
+    backdrop-filter: var(--blur-sm); -webkit-backdrop-filter: var(--blur-sm);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .refresh-btn:active { transform: scale(0.9); background: var(--glass-bg-strong); }
+  .refresh-btn svg { width: 16px; height: 16px; color: var(--text-secondary); transition: transform 0.6s; }
+  .refresh-btn.spinning svg { transform: rotate(360deg); }
+
+  /* === MAIN CONTENT === */
+  .main {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+  .screen { display: none; padding: 16px; }
+  .screen.active { display: block; }
+
+  /* === GLASS CARD === */
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--blur-sm); -webkit-backdrop-filter: var(--blur-sm);
+    border: 0.5px solid var(--glass-border);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .glass-card-strong {
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+    border: 0.5px solid var(--glass-border-strong);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  /* === SEARCH BAR === */
+  .search-wrap { margin-bottom: 14px; position: relative; }
+  .search-input {
+    width: 100%; padding: 12px 16px 12px 42px;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--blur-sm); -webkit-backdrop-filter: var(--blur-sm);
+    border: 0.5px solid var(--glass-border-strong);
+    border-radius: 14px; color: var(--text);
+    font-family: var(--font); font-size: 15px;
+    outline: none;
+  }
+  .search-input::placeholder { color: var(--text-tertiary); }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,195,247,0.15); }
+  .search-icon {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--text-tertiary); pointer-events: none;
+  }
+
+  /* === SECTION TITLE === */
+  .section-title {
+    font-size: 12px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-tertiary); margin-bottom: 10px; padding: 0 2px;
+  }
+  .section-group { margin-bottom: 20px; }
+
+  /* === INCIDENCIAS / ALERTS === */
+  .alert-item {
+    padding: 14px 16px;
+    border-bottom: 0.5px solid var(--glass-border);
+    display: flex; gap: 12px; align-items: flex-start;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .alert-item:last-child { border-bottom: none; }
+  .alert-item:active { background: rgba(255,255,255,0.05); }
+  .alert-pill {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+    padding: 4px 8px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .alert-pill.warn { background: rgba(251,191,36,0.2); color: #fbbf24; border: 0.5px solid rgba(251,191,36,0.3); }
+  .alert-pill.info { background: rgba(79,195,247,0.2); color: #4fc3f7; border: 0.5px solid rgba(79,195,247,0.3); }
+  .alert-pill.danger { background: rgba(248,113,113,0.2); color: #f87171; border: 0.5px solid rgba(248,113,113,0.3); }
+  .alert-text { font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); }
+  .alert-text strong { color: var(--text); font-weight: 500; display: block; margin-bottom: 2px; }
+  .alert-expand { display: none; font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 6px; padding-top: 6px; border-top: 0.5px solid var(--glass-border); }
+  .alert-expand.open { display: block; }
+
+  /* === LINE BADGE === */
+  .line-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 10px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0px; flex-shrink: 0;
+  }
+
+  /* === ROUTE LIST === */
+  .route-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 0.5px solid var(--glass-border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .route-item:last-child { border-bottom: none; }
+  .route-item:active { background: rgba(255,255,255,0.05); }
+  .route-info { flex: 1; min-width: 0; }
+  .route-name { font-size: 14.5px; font-weight: 500; color: var(--text); }
+  .route-desc { font-size: 12px; color: var(--text-secondary); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .route-arrow { color: var(--text-tertiary); flex-shrink: 0; }
+
+  /* === VEHICLE CARD === */
+  .vehicle-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 0.5px solid var(--glass-border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .vehicle-item:last-child { border-bottom: none; }
+  .vehicle-item:active { background: rgba(255,255,255,0.05); }
+  .vehicle-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: rgba(79,195,247,0.15); border: 0.5px solid rgba(79,195,247,0.3);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .vehicle-icon svg { width: 18px; height: 18px; color: var(--accent); }
+  .vehicle-info { flex: 1; min-width: 0; }
+  .vehicle-id { font-size: 14px; font-weight: 500; font-family: var(--font-mono); color: var(--text); }
+  .vehicle-status { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .vehicle-speed {
+    font-size: 13px; font-weight: 500; color: var(--accent);
+    font-family: var(--font-mono); flex-shrink: 0;
+  }
+  .speed-unit { font-size: 10px; color: var(--text-tertiary); }
+
+  /* === STATUS CHIP === */
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  }
+  .status-chip.moving { background: rgba(52,211,153,0.15); color: #34d399; border: 0.5px solid rgba(52,211,153,0.25); }
+  .status-chip.stopped { background: rgba(251,191,36,0.15); color: #fbbf24; border: 0.5px solid rgba(251,191,36,0.25); }
+  .status-chip.unknown { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+  .chip-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* === TRIP UPDATES === */
+  .trip-item {
+    padding: 14px 16px;
+    border-bottom: 0.5px solid var(--glass-border);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .trip-item:last-child { border-bottom: none; }
+  .trip-item:active { background: rgba(255,255,255,0.05); }
+  .trip-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .trip-id { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); }
+  .trip-stops { display: flex; flex-direction: column; gap: 4px; }
+  .stop-row { display: flex; align-items: center; gap: 8px; }
+  .stop-name { font-size: 13px; color: var(--text-secondary); flex: 1; }
+  .stop-time { font-family: var(--font-mono); font-size: 12px; color: var(--text); }
+  .stop-delay {
+    font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+  .stop-delay.late { background: rgba(248,113,113,0.2); color: #f87171; }
+  .stop-delay.early { background: rgba(52,211,153,0.2); color: #34d399; }
+  .stop-delay.ontime { background: rgba(79,195,247,0.2); color: #4fc3f7; }
+
+  /* === LOADING STATE === */
+  .skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 6px; height: 14px;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .skeleton-row { padding: 14px 16px; display: flex; gap: 12px; align-items: center; border-bottom: 0.5px solid var(--glass-border); }
+  .skeleton-circle { width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; }
+  .skeleton-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .skeleton-line1 { width: 60%; }
+  .skeleton-line2 { width: 40%; height: 11px; }
+
+  /* === EMPTY STATE === */
+  .empty-state {
+    text-align: center; padding: 48px 24px; color: var(--text-tertiary);
+  }
+  .empty-state svg { width: 48px; height: 48px; opacity: 0.3; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; line-height: 1.5; }
+
+  /* === BOTTOM NAV === */
+  .bottom-nav {
+    position: relative; z-index: 10;
+    background: rgba(4,12,26,0.5);
+    backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+    border-top: 0.5px solid var(--glass-border);
+    display: flex;
+    padding: 8px 0;
+    padding-bottom: calc(8px + var(--safe-bottom));
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    gap: 4px; padding: 6px 4px; cursor: pointer;
+    transition: all 0.2s; -webkit-tap-highlight-color: transparent;
+    position: relative;
+  }
+  .nav-item:active { transform: scale(0.92); }
+  .nav-icon {
+    width: 22px; height: 22px; color: var(--text-tertiary);
+    transition: color 0.2s, filter 0.2s;
+  }
+  .nav-label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); transition: color 0.2s; letter-spacing: 0.2px; }
+  .nav-item.active .nav-icon { color: var(--accent); filter: drop-shadow(0 0 6px rgba(79,195,247,0.6)); }
+  .nav-item.active .nav-label { color: var(--accent); }
+  .nav-indicator {
+    position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+    opacity: 0; transition: opacity 0.2s;
+    box-shadow: 0 0 6px var(--accent);
+  }
+  .nav-item.active .nav-indicator { opacity: 1; }
+
+  /* === STATS BAR === */
+  .stats-bar {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px; margin-bottom: 14px;
+  }
+  .stat-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--blur-sm); -webkit-backdrop-filter: var(--blur-sm);
+    border: 0.5px solid var(--glass-border); border-radius: 14px;
+    padding: 12px; text-align: center;
+  }
+  .stat-value { font-size: 22px; font-weight: 300; color: var(--text); letter-spacing: -0.5px; font-family: var(--font-mono); }
+  .stat-label { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* === PWA INSTALL BANNER === */
+  .pwa-banner {
+    margin-bottom: 16px; padding: 16px;
+    background: linear-gradient(135deg, rgba(79,195,247,0.12) 0%, rgba(167,139,250,0.12) 100%);
+    border: 0.5px solid rgba(79,195,247,0.3);
+    border-radius: 18px;
+    display: flex; gap: 12px; align-items: center;
+  }
+  .pwa-banner-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: linear-gradient(135deg, #4fc3f7, #a78bfa);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(79,195,247,0.4);
+  }
+  .pwa-banner-icon svg { width: 22px; height: 22px; }
+  .pwa-banner-info { flex: 1; min-width: 0; }
+  .pwa-banner-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .pwa-banner-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+  .pwa-install-btn {
+    margin-top: 8px; padding: 8px 16px;
+    background: linear-gradient(135deg, #4fc3f7, #a78bfa);
+    border: none; border-radius: 10px; color: #040c1a;
+    font-family: var(--font); font-size: 13px; font-weight: 600;
+    cursor: pointer; width: 100%; transition: opacity 0.2s, transform 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .pwa-install-btn:active { opacity: 0.85; transform: scale(0.98); }
+  .pwa-banner-full { display: flex; flex-direction: column; flex: 1; }
+
+  /* === IOS INSTALL HINT === */
+  .ios-hint {
+    margin-bottom: 16px; padding: 14px 16px;
+    background: var(--glass-bg-strong);
+    border: 0.5px solid var(--glass-border-strong);
+    border-radius: 16px;
+    font-size: 13px; line-height: 1.6; color: var(--text-secondary);
+  }
+  .ios-hint strong { color: var(--text); font-weight: 500; display: block; margin-bottom: 4px; }
+
+  /* === TOAST === */
+  .toast {
+    position: fixed; bottom: calc(var(--nav-h) + 16px + var(--safe-bottom)); left: 50%;
+    transform: translateX(-50%) translateY(20px); z-index: 100;
+    background: var(--glass-bg-strong); backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 0.5px solid var(--glass-border-strong); border-radius: 12px;
+    padding: 10px 20px; font-size: 13.5px; font-weight: 500; color: var(--text);
+    white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* === MAP PLACEHOLDER === */
+  .map-placeholder {
+    border-radius: 14px; overflow: hidden; margin-bottom: 14px;
+    background: rgba(79,195,247,0.05); border: 0.5px solid var(--glass-border);
+    position: relative; height: 180px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .map-placeholder svg { width: 100%; height: 100%; position: absolute; inset: 0; }
+  .map-overlay { position: relative; z-index: 1; text-align: center; }
+  .map-overlay p { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+
+  /* === LAST UPDATED === */
+  .last-updated { font-size: 11px; color: var(--text-tertiary); text-align: right; margin-bottom: 12px; font-family: var(--font-mono); }
+
+  /* === COUNT BADGE === */
+  .count-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; border-radius: 10px; padding: 0 5px;
+    background: rgba(248,113,113,0.25); color: #f87171;
+    font-size: 11px; font-weight: 600; margin-left: 6px;
+    font-family: var(--font-mono);
+  }
+
+  /* === FILTER CHIPS === */
+  .filter-bar {
+    display: flex; gap: 8px; margin-bottom: 14px;
+    overflow-x: auto; padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-chip {
+    padding: 6px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 500;
+    background: var(--glass-bg); border: 0.5px solid var(--glass-border);
+    color: var(--text-secondary); white-space: nowrap; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-chip.active { background: rgba(79,195,247,0.2); border-color: var(--accent); color: var(--accent); }
+  .filter-chip:active { transform: scale(0.95); }
+
+  /* Scrollbar */
+  .main::-webkit-scrollbar { width: 3px; }
+  .main::-webkit-scrollbar-track { background: transparent; }
+  .main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Desktop blocker -->
+<div class="desktop-block">
+  <svg viewBox="0 0 80 60" width="80" height="60" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="76" height="46" rx="6" stroke="white" stroke-width="2"/>
+    <line x1="20" y1="56" x2="60" y2="56" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <line x1="40" y1="48" x2="40" y2="56" stroke="white" stroke-width="2"/>
+    <line x1="30" y1="28" x2="50" y2="28" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <line x1="30" y1="34" x2="44" y2="34" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <h2>Solo móvil y tablet</h2>
+  <p>TuCercanías está diseñada exclusivamente para dispositivos móviles y tabletas. Escanea el QR o accede desde tu teléfono.</p>
+</div>
+
+<!-- Animated background -->
+<div class="bg-orbs">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+  <div class="orb orb4"></div>
+</div>
+
+<!-- App shell -->
+<div class="app-shell">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="6" width="18" height="12" rx="3" fill="white" opacity="0.9"/>
+          <rect x="6" y="14" width="4" height="3" rx="1" fill="#040c1a"/>
+          <rect x="14" y="14" width="4" height="3" rx="1" fill="#040c1a"/>
+          <rect x="5" y="9" width="14" height="4" rx="1" fill="#040c1a" opacity="0.5"/>
+          <circle cx="7" cy="18" r="1.5" fill="white" opacity="0.9"/>
+          <circle cx="17" cy="18" r="1.5" fill="white" opacity="0.9"/>
+        </svg>
+      </div>
+      <span class="logo-text">Tu<span>Cercanías</span></span>
+    </div>
+    <div class="header-right">
+      <div class="status-dot" id="statusDot" title="Actualizando..."></div>
+      <div class="refresh-btn" id="refreshBtn" onclick="refreshAll()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main" id="mainContent">
+
+    <!-- SCREEN: Inicio -->
+    <div class="screen active" id="screen-inicio">
+      <div id="pwaBanner"></div>
+      <div class="stats-bar" id="statsBar">
+        <div class="stat-card"><div class="stat-value" id="stat-trains">—</div><div class="stat-label">Trenes activos</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-alerts">—</div><div class="stat-label">Incidencias</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-lines">—</div><div class="stat-label">Líneas</div></div>
+      </div>
+      <div class="last-updated" id="lastUpdated">Cargando...</div>
+      <div class="section-group">
+        <div class="section-title">Incidencias activas</div>
+        <div class="glass-card" id="alertsHome"></div>
+      </div>
+      <div class="section-group">
+        <div class="section-title">Trenes en circulación</div>
+        <div class="glass-card" id="vehiclesHome"></div>
+      </div>
+    </div>
+
+    <!-- SCREEN: Líneas -->
+    <div class="screen" id="screen-lineas">
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="search-input" type="text" placeholder="Buscar línea o estación..." id="searchInput" oninput="filterRoutes(this.value)">
+      </div>
+      <div class="filter-bar" id="filterBar"></div>
+      <div class="glass-card" id="routesList"></div>
+    </div>
+
+    <!-- SCREEN: Tiempo real -->
+    <div class="screen" id="screen-realtime">
+      <div class="section-group">
+        <div class="section-title">Posición de trenes</div>
+        <div class="glass-card" id="vehiclesList"></div>
+      </div>
+      <div class="section-group" style="margin-top:16px">
+        <div class="section-title">Actualizaciones de horario</div>
+        <div class="glass-card" id="tripsList"></div>
+      </div>
+    </div>
+
+    <!-- SCREEN: Incidencias -->
+    <div class="screen" id="screen-alertas">
+      <div class="glass-card" id="alertsFull"></div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- Bottom nav -->
+  <div class="bottom-nav">
+    <div class="nav-item active" onclick="switchTab('inicio',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="nav-label">Inicio</span>
+      <div class="nav-indicator"></div>
+    </div>
+    <div class="nav-item" onclick="switchTab('lineas',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h.01"/><path d="M17 15h.01"/></svg>
+      <span class="nav-label">Líneas</span>
+      <div class="nav-indicator"></div>
+    </div>
+    <div class="nav-item" onclick="switchTab('realtime',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="nav-label">En vivo</span>
+      <div class="nav-indicator"></div>
+    </div>
+    <div class="nav-item" onclick="switchTab('alertas',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="nav-label">Avisos</span>
+      <div class="nav-indicator"></div>
+    </div>
+  </div>
+
+</div><!-- /app-shell -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ── DATA STORE ──────────────────────────────────────────────────────────────
+const state = {
+  alerts: [],
+  vehicles: [],
+  trips: [],
+  routes: [],
+  routesFiltered: [],
+  lastUpdate: null,
+  loading: { alerts: false, vehicles: false, trips: false, routes: false }
+};
+
+// ── CSV PARSER ───────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',');
+    return Object.fromEntries(headers.map((h, i) => [h, (vals[i] || '').trim()]));
+  });
+}
+
+// ── FETCH HELPERS ─────────────────────────────────────────────────────────────
+async function fetchJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  return r.json();
+}
+async function fetchCSV(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  const txt = await r.text();
+  return parseCSV(txt);
+}
+
+// ── LINE COLOR ───────────────────────────────────────────────────────────────
+function lineStyle(routeId, color) {
+  const bg = color ? '#' + color.trim() : '#4fc3f7';
+  const name = (routeId || '').replace(/\s/g,'').replace(/^10T\d+/, '').toUpperCase().substring(0,4);
+  const textColor = '#fff';
+  return { bg, textColor, name };
+}
+
+function cleanString(str) {
+  try { return decodeURIComponent(escape(str)); } catch { return str; }
+}
+
+// ── LOAD ROUTES ──────────────────────────────────────────────────────────────
+async function loadRoutes() {
+  try {
+    const rows = await fetchCSV('https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/routes.csv');
+    // Deduplicate by short name
+    const seen = new Set();
+    state.routes = rows.filter(r => {
+      const key = (r.route_short_name || '').trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).map(r => ({
+      id: r.route_id,
+      shortName: (r.route_short_name || '').trim(),
+      longName: cleanString((r.route_long_name || '').trim()),
+      color: (r.route_color || '').trim()
+    }));
+    state.routesFiltered = [...state.routes];
+    document.getElementById('stat-lines').textContent = state.routes.length;
+    renderRoutesList();
+    renderFilterBar();
+  } catch(e) { console.error('routes', e); }
+}
+
+// ── LOAD ALERTS ──────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  try {
+    const data = await fetchJSON('https://gtfsrt.renfe.com/alerts.json');
+    state.alerts = (data.entity || []).map(e => {
+      const a = e.alert || {};
+      const desc = (a.descriptionText?.translation?.[0]?.text || '');
+      const routes = (a.informedEntity || []).map(ie => ie.routeId).filter(Boolean);
+      return { id: e.id, desc, routes };
+    });
+    document.getElementById('stat-alerts').textContent = state.alerts.length;
+    renderAlertsHome();
+    renderAlertsFull();
+  } catch(e) { console.error('alerts', e); }
+}
+
+// ── LOAD VEHICLES ─────────────────────────────────────────────────────────────
+async function loadVehicles() {
+  try {
+    const data = await fetchJSON('https://gtfsrt.renfe.com/vehicle_positions.json');
+    state.vehicles = (data.entity || []).map(e => {
+      const v = e.vehicle || {};
+      const pos = v.position || {};
+      const trip = v.trip || {};
+      return {
+        id: e.id,
+        vehicleId: v.vehicle?.id || e.id,
+        label: v.vehicle?.label || '',
+        lat: pos.latitude,
+        lon: pos.longitude,
+        speed: pos.speed ? Math.round(pos.speed * 3.6) : null,
+        bearing: pos.bearing || 0,
+        status: v.current_status,
+        stopId: v.stop_id || '',
+        routeId: trip.route_id || '',
+        tripId: trip.trip_id || ''
+      };
+    });
+    document.getElementById('stat-trains').textContent = state.vehicles.length;
+    renderVehiclesHome();
+    renderVehiclesList();
+  } catch(e) { console.error('vehicles', e); }
+}
+
+// ── LOAD TRIP UPDATES ─────────────────────────────────────────────────────────
+async function loadTrips() {
+  try {
+    const data = await fetchJSON('https://gtfsrt.renfe.com/trip_updates.json');
+    state.trips = (data.entity || []).slice(0, 60).map(e => {
+      const tu = e.trip_update || {};
+      const trip = tu.trip || {};
+      const stopTimeUpdates = (tu.stop_time_update || []).slice(0, 3);
+      return {
+        id: e.id,
+        routeId: trip.route_id || '',
+        tripId: trip.trip_id || '',
+        stopUpdates: stopTimeUpdates.map(s => ({
+          stopId: s.stop_id || '',
+          arrival: s.arrival?.time ? new Date(s.arrival.time * 1000) : null,
+          arrivalDelay: s.arrival?.delay || 0,
+          departure: s.departure?.time ? new Date(s.departure.time * 1000) : null,
+          departureDelay: s.departure?.delay || 0
+        }))
+      };
+    });
+    renderTripsList();
+  } catch(e) { console.error('trips', e); }
+}
+
+// ── RENDER HELPERS ────────────────────────────────────────────────────────────
+function fmtTime(date) {
+  if (!date) return '—';
+  return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDelay(secs) {
+  if (!secs) return null;
+  const mins = Math.round(secs / 60);
+  if (mins === 0) return null;
+  return mins > 0 ? `+${mins}m` : `${mins}m`;
+}
+
+function getLineName(routeId) {
+  if (!routeId) return '—';
+  const cleaned = routeId.replace(/\s/g,'');
+  const m = cleaned.match(/C\d+[ab]?$/i);
+  return m ? m[0].toUpperCase() : routeId.trim().substring(0,6);
+}
+
+function getLineColor(routeId) {
+  const route = state.routes.find(r => (r.id||'').trim() === (routeId||'').trim());
+  return route?.color || '4fc3f7';
+}
+
+function skeletonRows(n=4) {
+  return Array.from({length:n}, () => `
+    <div class="skeleton-row">
+      <div class="skeleton skeleton-circle"></div>
+      <div class="skeleton-lines">
+        <div class="skeleton skeleton-line1"></div>
+        <div class="skeleton skeleton-line2"></div>
+      </div>
+    </div>`).join('');
+}
+
+// ── RENDER ALERTS ─────────────────────────────────────────────────────────────
+function renderAlertsHome() {
+  const el = document.getElementById('alertsHome');
+  if (!state.alerts.length) {
+    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><p>Sin incidencias activas</p></div>`;
+    return;
+  }
+  const items = state.alerts.slice(0, 5);
+  el.innerHTML = items.map((a, i) => {
+    const lines = [...new Set(a.routes.map(r => getLineName(r)))].filter(Boolean).join(', ');
+    const isWarn = a.desc.includes('obra') || a.desc.includes('reajusta');
+    const pillClass = isWarn ? 'warn' : 'info';
+    const pillText = isWarn ? 'Obras' : 'Aviso';
+    const short = a.desc.substring(0, 80) + (a.desc.length > 80 ? '…' : '');
+    return `
+      <div class="alert-item" onclick="toggleAlert(${i})">
+        <div class="alert-pill ${pillClass}">${pillText}</div>
+        <div class="alert-text" style="flex:1">
+          ${lines ? `<strong>${lines}</strong>` : ''}
+          <span class="alert-short-${i}">${short}</span>
+          <div class="alert-expand" id="alert-exp-${i}">${a.desc}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+function toggleAlert(i) {
+  const exp = document.getElementById('alert-exp-' + i);
+  if (exp) { exp.classList.toggle('open'); }
+}
+function renderAlertsFull() {
+  const el = document.getElementById('alertsFull');
+  if (!state.alerts.length) {
+    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><p>No hay incidencias ni avisos activos en este momento.</p></div>`;
+    return;
+  }
+  el.innerHTML = state.alerts.map((a, i) => {
+    const lines = [...new Set(a.routes.map(r => getLineName(r)))].filter(Boolean).join(', ');
+    const isWarn = a.desc.includes('obra') || a.desc.includes('reajusta');
+    const isDanger = a.desc.includes('suspende') || a.desc.includes('cortado');
+    const pillClass = isDanger ? 'danger' : isWarn ? 'warn' : 'info';
+    const pillText = isDanger ? 'Corte' : isWarn ? 'Obras' : 'Aviso';
+    return `
+      <div class="alert-item" onclick="toggleAlertFull(${i})">
+        <div class="alert-pill ${pillClass}">${pillText}</div>
+        <div class="alert-text" style="flex:1">
+          ${lines ? `<strong>Línea ${lines}</strong>` : '<strong>Aviso general</strong>'}
+          <div class="alert-expand open" id="alertf-exp-${i}">${a.desc}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+function toggleAlertFull(i) {
+  const exp = document.getElementById('alertf-exp-' + i);
+  if(exp) exp.classList.toggle('open');
+}
+
+// ── RENDER VEHICLES ──────────────────────────────────────────────────────────
+function vehicleCardHTML(v) {
+  const lineName = getLineName(v.routeId);
+  const lineColor = getLineColor(v.routeId);
+  const moving = v.status === 'IN_TRANSIT_TO' || (v.speed && v.speed > 0);
+  const statusClass = moving ? 'moving' : 'stopped';
+  const statusText = moving ? 'En marcha' : 'Parado';
+  const speedText = v.speed != null ? `${v.speed} <span class="speed-unit">km/h</span>` : '—';
+  return `
+    <div class="vehicle-item">
+      <div class="vehicle-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 10h18"/><path d="M7 15h.01"/><path d="M17 15h.01"/></svg>
+      </div>
+      <div class="vehicle-info">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="line-badge" style="background:#${lineColor};color:#fff;width:30px;height:20px;border-radius:5px;font-size:10px;display:inline-flex;align-items:center;justify-content:center">${lineName}</div>
+          <span class="vehicle-id">${v.vehicleId || v.id}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          <span class="status-chip ${statusClass}"><span class="chip-dot"></span>${statusText}</span>
+          ${v.lat ? `<span style="font-size:11px;color:var(--text-tertiary);">${v.lat.toFixed(3)}°N ${v.lon.toFixed(3)}°E</span>` : ''}
+        </div>
+      </div>
+      <div class="vehicle-speed">${speedText}</div>
+    </div>`;
+}
+function renderVehiclesHome() {
+  const el = document.getElementById('vehiclesHome');
+  const items = state.vehicles.slice(0, 8);
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><p>Sin datos de posición disponibles</p></div>`;
+    return;
+  }
+  el.innerHTML = items.map(vehicleCardHTML).join('') +
+    (state.vehicles.length > 8 ? `<div style="padding:12px 16px;text-align:center;font-size:12px;color:var(--text-tertiary)">+${state.vehicles.length-8} trenes más en "En vivo"</div>` : '');
+}
+function renderVehiclesList() {
+  const el = document.getElementById('vehiclesList');
+  if (!state.vehicles.length) {
+    el.innerHTML = `<div class="empty-state"><p>Cargando posiciones...</p></div>`;
+    return;
+  }
+  el.innerHTML = state.vehicles.map(vehicleCardHTML).join('');
+}
+
+// ── RENDER TRIPS ──────────────────────────────────────────────────────────────
+function renderTripsList() {
+  const el = document.getElementById('tripsList');
+  if (!state.trips.length) {
+    el.innerHTML = `<div class="empty-state"><p>Sin actualizaciones de horario</p></div>`;
+    return;
+  }
+  el.innerHTML = state.trips.slice(0, 30).map(t => {
+    const lineName = getLineName(t.routeId);
+    const lineColor = getLineColor(t.routeId);
+    const stopsHTML = t.stopUpdates.map(s => {
+      const delay = s.arrivalDelay || s.departureDelay;
+      const delayStr = fmtDelay(delay);
+      const delayClass = !delayStr ? 'ontime' : delay > 0 ? 'late' : 'early';
+      const time = fmtTime(s.arrival || s.departure);
+      return `<div class="stop-row">
+        <span class="stop-name">${s.stopId}</span>
+        <span class="stop-time">${time}</span>
+        ${delayStr ? `<span class="stop-delay ${delayClass}">${delayStr}</span>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="trip-item">
+      <div class="trip-header">
+        <div class="line-badge" style="background:#${lineColor};color:#fff;width:30px;height:20px;border-radius:5px;font-size:10px;display:inline-flex;align-items:center;justify-content:center">${lineName}</div>
+        <span class="trip-id">${t.tripId.substring(0,14)}…</span>
+      </div>
+      <div class="trip-stops">${stopsHTML}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── RENDER ROUTES ─────────────────────────────────────────────────────────────
+function renderRoutesList() {
+  const el = document.getElementById('routesList');
+  if (!state.routesFiltered.length) {
+    el.innerHTML = `<div class="empty-state"><p>No se encontraron líneas</p></div>`;
+    return;
+  }
+  el.innerHTML = state.routesFiltered.map(r => {
+    const { bg } = lineStyle(r.id, r.color);
+    const desc = r.longName.replace(/\s{2,}/g, ' ').replace(/-\s*-/, '→');
+    return `<div class="route-item">
+      <div class="line-badge" style="background:${bg};color:#fff">${r.shortName}</div>
+      <div class="route-info">
+        <div class="route-name">${r.shortName}</div>
+        <div class="route-desc">${desc || 'Línea de cercanías'}</div>
+      </div>
+      <svg class="route-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  }).join('');
+}
+
+function renderFilterBar() {
+  const bar = document.getElementById('filterBar');
+  const regions = ['Todas', 'Madrid', 'Barcelona', 'Valencia', 'Sevilla', 'Bilbao', 'Málaga'];
+  bar.innerHTML = regions.map((r, i) =>
+    `<div class="filter-chip ${i===0?'active':''}" onclick="filterByRegion('${r}', this)">${r}</div>`
+  ).join('');
+}
+
+function filterByRegion(region, el) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  if (region === 'Todas') {
+    state.routesFiltered = [...state.routes];
+  } else {
+    const regionKeywords = {
+      Madrid: ['C1','C2','C3','C4','C5','C8','C9','C10'],
+      Barcelona: ['R1','R2','R3','R4','R7','R8','R11','R12','R13','R14'],
+      Valencia: ['C1','C2','C3','C4','C5','C6'],
+      Sevilla: ['C1','C2','C3','C4','C5'],
+      Bilbao: ['C1','C2'],
+      Málaga: ['C1']
+    };
+    const keys = regionKeywords[region] || [];
+    state.routesFiltered = state.routes.filter(r => keys.some(k => r.shortName.startsWith(k.replace('C',''))));
+  }
+  renderRoutesList();
+}
+
+function filterRoutes(q) {
+  const lq = q.toLowerCase();
+  if (!q) {
+    state.routesFiltered = [...state.routes];
+  } else {
+    state.routesFiltered = state.routes.filter(r =>
+      r.shortName.toLowerCase().includes(lq) ||
+      r.longName.toLowerCase().includes(lq)
+    );
+  }
+  renderRoutesList();
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(tab, el) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + tab).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('mainContent').scrollTo(0, 0);
+}
+
+// ── REFRESH ───────────────────────────────────────────────────────────────────
+async function refreshAll() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  document.getElementById('statusDot').style.background = '#fbbf24';
+  try {
+    await Promise.all([loadAlerts(), loadVehicles(), loadTrips()]);
+    state.lastUpdate = new Date();
+    const t = state.lastUpdate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('lastUpdated').textContent = `Actualizado: ${t}`;
+    document.getElementById('statusDot').style.background = '#34d399';
+    setTimeout(() => { document.getElementById('statusDot').style.background = ''; }, 2000);
+  } catch(e) {
+    document.getElementById('statusDot').style.background = '#f87171';
+  }
+  setTimeout(() => btn.classList.remove('spinning'), 600);
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ── PWA INSTALL ───────────────────────────────────────────────────────────────
+let deferredPrompt = null;
+
+function checkPWA() {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                       window.navigator.standalone === true;
+  if (isStandalone) {
+    document.getElementById('pwaBanner').innerHTML = '';
+    return;
+  }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    document.getElementById('pwaBanner').innerHTML = `
+      <div class="ios-hint" id="iosBanner">
+        <strong>Instalar TuCercanías en tu iPhone</strong>
+        Toca el botón de compartir <strong>⎙</strong> en Safari y después
+        "<strong>Añadir a pantalla de inicio</strong>" para usarla como app.
+      </div>`;
+    return;
+  }
+  if (deferredPrompt) {
+    renderInstallBanner();
+  }
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  checkPWA();
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('pwaBanner').innerHTML = '';
+  showToast('✓ TuCercanías instalada correctamente');
+  deferredPrompt = null;
+});
+
+function renderInstallBanner() {
+  document.getElementById('pwaBanner').innerHTML = `
+    <div class="pwa-banner" id="installBanner">
+      <div class="pwa-banner-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="6" width="18" height="12" rx="3" fill="white" opacity="0.9"/>
+          <rect x="6" y="14" width="4" height="3" rx="1" fill="#040c1a"/>
+          <rect x="14" y="14" width="4" height="3" rx="1" fill="#040c1a"/>
+          <circle cx="7" cy="18" r="1.5" fill="white" opacity="0.9"/>
+          <circle cx="17" cy="18" r="1.5" fill="white" opacity="0.9"/>
+        </svg>
+      </div>
+      <div class="pwa-banner-full">
+        <div class="pwa-banner-info">
+          <div class="pwa-banner-title">Instalar TuCercanías</div>
+          <div class="pwa-banner-desc">Acceso rápido, funciona sin conexión y recibe actualizaciones en tiempo real.</div>
+        </div>
+        <button class="pwa-install-btn" onclick="installPWA()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 15V3m0 12l-4-4m4 4l4-4"/><path d="M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/></svg>
+          Añadir a pantalla de inicio
+        </button>
+      </div>
+    </div>`;
+}
+
+async function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    document.getElementById('pwaBanner').innerHTML = '';
+    showToast('Instalando TuCercanías…');
+  }
+  deferredPrompt = null;
+}
+
+// ── SKELETONS ─────────────────────────────────────────────────────────────────
+function showSkeletons() {
+  ['alertsHome','vehiclesHome','routesList','vehiclesList','tripsList','alertsFull'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = skeletonRows(4);
+  });
+}
+
+// ── AUTO REFRESH ──────────────────────────────────────────────────────────────
+setInterval(refreshAll, 30000);
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function init() {
+  showSkeletons();
+  await loadRoutes();
+  await refreshAll();
+  checkPWA();
+}
+
+init();
+
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.warn('SW registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>
