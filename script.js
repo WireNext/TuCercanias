@@ -25,14 +25,29 @@ let S = {
 
 // Función para JSON con Proxy (CORS FIX para Renfe)
 async function fj(url) {
-  const proxy = "https://thingproxy.freeboard.io/fetch/";
+  // Intentamos primero con AllOrigins (Proxy 1)
+  const proxy1 = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  
   try {
-    const r = await fetch(proxy + url, { cache: 'no-store' });
-    if (!r.ok) throw new Error(`Error: ${r.status}`);
-    return await r.json();
-  } catch (e) { console.error("Error en JSON:", e); return null; }
+    const response = await fetch(proxy1, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Proxy 1 falló');
+    const data = await response.json();
+    // AllOrigins devuelve el JSON dentro de "contents"
+    return typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
+  } catch (err) {
+    console.warn("Proxy 1 falló, intentando Proxy 2 (CorsProxy)...");
+    
+    // Si falla el primero, intentamos con CorsProxy.io (Proxy 2)
+    try {
+      const proxy2 = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+      const response2 = await fetch(proxy2);
+      return await response2.json();
+    } catch (err2) {
+      console.error("Ambos proxies fallaron. Revisa la conexión o la URL de Renfe.");
+      return null;
+    }
+  }
 }
-
 // Función para CSV (GitHub)
 async function fc(url) {
   try {
