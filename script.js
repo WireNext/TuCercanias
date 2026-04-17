@@ -7,6 +7,7 @@ const URLS = {
   
   // Datos Estáticos (CSV de tu GitHub)
   ROUTES: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/routes.csv',
+  STOP_TIMES: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/stop_times.csv',
   STOPS: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/stops.csv',
   TRIPS: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/trips.csv',
   AGENCY: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/agency.csv'
@@ -18,7 +19,9 @@ let S = {
   stops: [],
   alerts: [],
   vehicles: [],
-  tripsRT: []
+  tripsRT: [],
+  stopTimes: [],
+  tripsCSV: []
 };
 
 let map;
@@ -76,6 +79,8 @@ async function loadStaticData() {
   console.log("Cargando base de datos CSV...");
   S.routes = await fc(URLS.ROUTES);
   S.stops = await fc(URLS.STOPS);
+  S.stopTimes = await fc(URLS.STOP_TIMES);
+  S.tripsCSV = await fc(URLS.TRIPS_CSV);
   console.log(`Cargadas ${S.routes.length} rutas y ${S.stops.length} estaciones.`);
   
   // Dibujamos las estaciones UNA SOLA VEZ
@@ -127,21 +132,83 @@ function initMap() {
 
 // DIBUJAR ESTACIONES CON EMOJI 🚉
 function updateStopMarkers() {
-  // Icono para la estación
-  const stopIcon = L.divIcon({
-    html: '🚉',
-    className: 'stop-icon', // Clase para CSS si quieres escalarlo
-    iconSize: [20, 20],
-    iconAnchor: [10, 10] // Centrado
-  });
+  const stopIcon = L.divIcon({ html: '🚉', className: 'stop-icon', iconSize: [20, 20] });
 
   S.stops.forEach(s => {
-    if (s.stop_lat && s.stop_lon) {
-      L.marker([s.stop_lat, s.stop_lon], { icon: stopIcon })
-       .addTo(map)
-       .bindPopup(`<b>Estación:</b><br>${s.stop_name}`);
-    }
+    const m = L.marker([s.stop_lat, s.stop_lon], { icon: stopIcon }).addTo(map);
+    m.on('click', () => showStopDetail(s));
   });
+}
+
+function showStopDetail(stop) {
+  // Buscamos los próximos 5 trenes que pasan por esta estación hoy
+  const nextTrains = S.stopTimes
+    .filter(st => st.stop_id === stop.stop_id)
+    .slice(0, 10); // Simplificado: coge los primeros 10 del CSV
+
+  const modal = document.getElementById('modal-routes'); // Reutilizamos este modal para info
+  const container = document.getElementById('routesList');
+  
+  showSection('routes');
+  
+  container.innerHTML = `
+    <h3>Estación de ${stop.stop_name}</h3>
+    <p>Próximas salidas programadas:</p>
+    ${nextTrains.map(t => {
+      const trip = S.tripsCSV.find(tr => tr.trip_id === t.trip_id);
+      const route = S.routes.find(r => r.route_id === trip?.route_id);
+      return `
+        <div class="trip-item">
+          <div class="line-badge" style="background-color:#${route?.route_color || '444'}">
+            ${route?.route_short_name || '?'}
+          </div>
+          <div style="flex:1; margin-left:10px">${trip?.trip_headsign || 'Cercanías'}</div>
+          <div class="time">${t.departure_time.substring(0, 5)}</div>
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+// ── LÓGICA DE DETALLE DE TREN 🚂 ─────────────────────────────────────────────
+function getTripDetails(tripId) {
+  // Filtramos los horarios de ese viaje y los ordenamos por secuencia
+  const schedule = S.stopTimes
+    .filter(st => st.trip_id === tripId)
+    .sort((a, b) => parseInt(a.stop_sequence) - parseInt(b.stop_sequence));
+
+  return schedule.map(st => {
+    const stop = S.stops.find(s => s.stop_id === st.stop_id);
+    return {
+      name: stop ? stop.stop_name : 'Parada desconocida',
+      arrival: st.arrival_time.substring(0, 5)
+    };
+  });
+}
+
+async function showTripDetail(v) {
+  const schedule = getTripDetails(v.tripId); // tripId viene del JSON de posiciones
+  const modal = document.getElementById('modal-trains');
+  const container = document.getElementById('vehiclesList');
+  
+  showSection('trains');
+  
+  container.innerHTML = `
+    <div class="card" style="border-left: 5px solid #${v.color}">
+      <h3>Línea ${v.linea} - Destino final</h3>
+      <p>Estado: En movimiento</p>
+    </div>
+    <h4>Recorrido y Horarios:</h4>
+    <div class="timeline">
+      ${schedule.map(s => `
+        <div class="timeline-item">
+          <span class="time">${s.arrival}</span>
+          <span class="dot"></span>
+          <span class="station">${s.name}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 // DIBUJAR TRENES CON EMOJI 🚂 Y COLOR DE LÍNEA

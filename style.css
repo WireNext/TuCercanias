@@ -289,3 +289,39 @@ body {
   font-family: 'DM Mono', monospace;
   text-shadow: 0 1px 2px rgba(0,0,0,0.8);
 }
+
+.timeline {
+  margin-top: 20px;
+  border-left: 2px solid var(--primary-low);
+  padding-left: 20px;
+  margin-left: 10px;
+}
+
+.timeline-item {
+  position: relative;
+  padding-bottom: 15px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.timeline-item .dot {
+  position: absolute;
+  left: -27px;
+  width: 12px;
+  height: 12px;
+  background: var(--primary);
+  border-radius: 50%;
+  border: 3px solid var(--bg);
+}
+
+.timeline-item .time {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--primary);
+  min-width: 45px;
+}
+
+.timeline-item .station {
+  font-size: 0.95rem;
+}
