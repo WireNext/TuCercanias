@@ -619,7 +619,28 @@ function parseCSV(txt) {
     return Object.fromEntries(h.map((k,i)=>[k,(v[i]||'').trim()]));
   });
 }
-const fj = url => fetch(url,{cache:'no-store'}).then(r=>r.json());
+
+// ESTA ES LA FUNCIÓN CLAVE: fj con Proxy automático
+// Sustituye a tu antigua fj y a fetchData
+async function fj(url) {
+  // Usamos AllOrigins para evitar el bloqueo CORS de Renfe
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  
+  try {
+    const response = await fetch(proxyUrl, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Error en el proxy');
+    const data = await response.json();
+    
+    // AllOrigins devuelve el JSON como texto dentro de "contents", 
+    // lo convertimos a objeto para que el resto del código funcione.
+    return JSON.parse(data.contents); 
+  } catch (error) {
+    console.error("Error cargando datos de Renfe:", error);
+    throw error;
+  }
+}
+
+// fc se queda igual (para los CSV de GitHub)
 const fc = url => fetch(url,{cache:'no-store'}).then(r=>r.text()).then(parseCSV);
 const cs = s => { try { return decodeURIComponent(escape(s)); } catch { return s; } };
 

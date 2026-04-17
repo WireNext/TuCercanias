@@ -5,15 +5,18 @@ const STATIC_ASSETS = [
   './manifest.json'
 ];
 
-// Install: pre-cache static assets
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then(cache => {
+      // Usamos addAll pero capturamos errores individuales para que no falle todo el SW
+      return Promise.allSettled(
+        STATIC_ASSETS.map(url => cache.add(url))
+      );
+    })
   );
   self.skipWaiting();
 });
 
-// Activate: clean old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -23,15 +26,11 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch strategy:
-// - GTFS RT endpoints (real-time): network-first, fallback to cache
-// - Static app shell: cache-first
-// - GitHub CSV data: stale-while-revalidate
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Real-time GTFS-RT feeds — network first
-  if (url.hostname === 'gtfsrt.renfe.com') {
+  // Si es una petición de datos (GTFS o Proxy), intentamos red primero
+  if (url.hostname.includes('renfe.com') || url.hostname.includes('herokuapp.com')) {
     event.respondWith(
       fetch(event.request)
         .then(response => {
@@ -41,27 +40,10 @@ self.addEventListener('fetch', event => {
         })
         .catch(() => caches.match(event.request))
     );
-    return;
-  }
-
-  // Static CSV data — stale-while-revalidate
-  if (url.hostname === 'raw.githubusercontent.com') {
+  } else {
+    // Para el resto (diseño, fuentes), primero caché
     event.respondWith(
-      caches.open(CACHE_NAME).then(cache =>
-        cache.match(event.request).then(cached => {
-          const networkFetch = fetch(event.request).then(response => {
-            cache.put(event.request, response.clone());
-            return response;
-          });
-          return cached || networkFetch;
-        })
-      )
+      caches.match(event.request).then(response => response || fetch(event.request))
     );
-    return;
   }
-
-  // App shell — cache first, network fallback
-  event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request))
-  );
 });
