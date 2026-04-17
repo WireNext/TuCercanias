@@ -1,49 +1,36 @@
-const CACHE_NAME = 'tucercanias-v1';
-const STATIC_ASSETS = [
+const CACHE_NAME = 'tucercanias-v2';
+const ASSETS = [
   './',
   './index.html',
+  './style.css',
+  './script.js',
   './manifest.json'
 ];
 
-self.addEventListener('install', event => {
-  event.waitUntil(
+self.addEventListener('install', e => {
+  e.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      // Usamos addAll pero capturamos errores individuales para que no falle todo el SW
-      return Promise.allSettled(
-        STATIC_ASSETS.map(url => cache.add(url))
-      );
+      // Usamos settled para que si falla un icono, el resto se guarde
+      return Promise.allSettled(ASSETS.map(a => cache.add(a)));
     })
   );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-
-  // Si es una petición de datos (GTFS o Proxy), intentamos red primero
-  if (url.hostname.includes('renfe.com') || url.hostname.includes('herokuapp.com')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-          return response;
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+  // Si pedimos datos a Renfe o al Proxy, siempre red primero
+  if (url.href.includes('renfe.com') || url.href.includes('thingproxy')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          return res;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(e.request))
     );
   } else {
-    // Para el resto (diseño, fuentes), primero caché
-    event.respondWith(
-      caches.match(event.request).then(response => response || fetch(event.request))
-    );
+    e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
   }
 });
