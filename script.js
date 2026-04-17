@@ -1,3 +1,6 @@
+let map;
+let markers = [];
+
 // ── CONFIGURACIÓN DE ENLACES ─────────────────────────────────────────────────
 const URLS = {
   // Tiempo Real (JSON)
@@ -165,15 +168,21 @@ function initMap() {
 }
 
 function updateMapMarkers() {
-  // Limpiar marcadores viejos y poner los nuevos basados en S.vehicles
-  markers.forEach(m => map.removeLayer(m));
-  markers = S.vehicles.map(v => {
-    return L.circleMarker([v.lat, v.lon], {
+  // Ahora markers ya existe, por lo que este bucle no dará error
+  if (markers) {
+    markers.forEach(m => map.removeLayer(m));
+  }
+  markers = []; // Limpiamos la lista para los nuevos trenes
+
+  S.vehicles.forEach(v => {
+    const m = L.circleMarker([v.lat, v.lon], {
       radius: 8,
-      fillColor: '#' + v.color,
+      fillColor: '#' + (v.color || '4fc3f7'),
       color: "#fff",
       weight: 2,
       fillOpacity: 1
     }).addTo(map).bindPopup(`Línea ${v.linea}`);
+    
+    markers.push(m); // Guardamos el marcador para poder borrarlo luego
   });
 }
