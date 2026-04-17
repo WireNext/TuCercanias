@@ -255,6 +255,19 @@ function renderVehiclesList() {
   `).join('');
 }
 
+function hideModals() {
+  // 1. Ocultar todos los modales quitando la clase 'active'
+  document.querySelectorAll('.modal').forEach(m => {
+    m.classList.remove('active');
+  });
+
+  // 2. Marcar el botón de "Inicio" como activo en la nav-bar
+  document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[0].classList.add('active');
+  
+  console.log("Modales cerrados");
+}
+
 // Llenar la lista de líneas (Modal)
 function renderRoutesList() {
   const container = document.getElementById('routesList');

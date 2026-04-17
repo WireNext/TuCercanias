@@ -325,3 +325,37 @@ body {
 .timeline-item .station {
   font-size: 0.95rem;
 }
+
+/* Botón de cerrar moderno */
+.close-btn {
+  position: absolute;
+  right: 15px;
+  top: 15px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 0.2s;
+  z-index: 2100; /* Por encima del contenido del modal */
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+/* Asegurar que el modal se vea bien */
+.modal-header {
+  position: relative; /* Para que la cruz absoluta se posicione respecto a esto */
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
