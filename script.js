@@ -141,32 +141,52 @@ function updateStopMarkers() {
 }
 
 function showStopDetail(stop) {
-  // Buscamos los próximos 5 trenes que pasan por esta estación hoy
-  const nextTrains = S.stopTimes
-    .filter(st => st.stop_id === stop.stop_id)
-    .slice(0, 10); // Simplificado: coge los primeros 10 del CSV
+  const now = new Date();
+  // Formateamos la hora actual a HH:MM:SS para comparar con el CSV
+  const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
+                      now.getMinutes().toString().padStart(2, '0') + ':' + 
+                      now.getSeconds().toString().padStart(2, '0');
 
-  const modal = document.getElementById('modal-routes'); // Reutilizamos este modal para info
+  // 1. Buscamos TODOS los horarios para esta estación
+  // 2. Filtramos los que salen DESPUÉS de la hora actual
+  // 3. Los ordenamos por hora para que los primeros sean los más próximos
+  const nextTrains = S.stopTimes
+    .filter(st => st.stop_id === stop.stop_id && st.departure_time > currentTime)
+    .sort((a, b) => a.departure_time.localeCompare(b.departure_time))
+    .slice(0, 8); // Cogemos los 8 siguientes
+
   const container = document.getElementById('routesList');
-  
   showSection('routes');
   
+  if (nextTrains.length === 0) {
+    container.innerHTML = `<h3>${stop.stop_name}</h3><p>No hay más trenes programados para hoy.</p>`;
+    return;
+  }
+
   container.innerHTML = `
-    <h3>Estación de ${stop.stop_name}</h3>
-    <p>Próximas salidas programadas:</p>
-    ${nextTrains.map(t => {
-      const trip = S.tripsCSV.find(tr => tr.trip_id === t.trip_id);
-      const route = S.routes.find(r => r.route_id === trip?.route_id);
-      return `
-        <div class="trip-item">
-          <div class="line-badge" style="background-color:#${route?.route_color || '444'}">
-            ${route?.route_short_name || '?'}
+    <div class="modal-info-header">
+      <h3>Estación de ${stop.stop_name}</h3>
+      <p>Próximas salidas (Horario programado):</p>
+    </div>
+    <div class="stop-schedule-list">
+      ${nextTrains.map(t => {
+        // Buscamos la información de la ruta (Línea y Color)
+        const trip = S.tripsCSV.find(tr => tr.trip_id === t.trip_id);
+        const route = S.routes.find(r => r.route_id === trip?.route_id);
+        
+        return `
+          <div class="trip-item">
+            <div class="line-badge" style="background-color:#${route?.route_color || '444'}">
+              ${route?.route_short_name || '?'}
+            </div>
+            <div class="trip-info">
+              <span class="destination">${trip?.trip_headsign || 'Dirección desconocida'}</span>
+              <span class="arrival-time">Sale a las <b>${t.departure_time.substring(0, 5)}</b></span>
+            </div>
           </div>
-          <div style="flex:1; margin-left:10px">${trip?.trip_headsign || 'Cercanías'}</div>
-          <div class="time">${t.departure_time.substring(0, 5)}</div>
-        </div>
-      `;
-    }).join('')}
+        `;
+      }).join('')}
+    </div>
   `;
 }
 
