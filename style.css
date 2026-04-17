@@ -246,3 +246,46 @@ body {
   gap: 10px;
   box-shadow: 0 10px 20px rgba(0,0,0,0.3);
 }
+
+/* ── ESTILOS DE ICONOS EN EL MAPA ── */
+
+/* Estilo para las estaciones 🚉 */
+.stop-icon {
+  font-size: 18px; /* Tamaño del emoji */
+  line-height: 1;
+  text-shadow: 0 0 3px rgba(0,0,0,0.8); /* Borde negro para que se vea en mapa claro */
+}
+
+/* Contenedor del tren 🚂 */
+.train-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%; /* Círculo */
+  border: 2px solid white;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  transition: transform 0.2s; /* Animación suave al mover */
+}
+
+.train-marker:hover {
+  transform: scale(1.2); /* Agrandar al pasar el ratón */
+}
+
+/* El emoji dentro del círculo */
+.train-emoji {
+  font-size: 14px;
+  margin-top: -2px; /* Ajuste fino de posición */
+}
+
+/* La etiqueta de texto de la línea (C1, C2...) */
+.train-label {
+  font-size: 8px;
+  font-weight: 900;
+  color: white;
+  margin-top: -3px; /* Ajuste fino de posición */
+  font-family: 'DM Mono', monospace;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
