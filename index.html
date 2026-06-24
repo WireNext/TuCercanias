@@ -1,96 +1,149 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#040c1a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="description" content="Sigue en tiempo real los trenes de Cercanías Renfe en España">
-    
-    <title>TuCercanías — Tiempo Real</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e" id="meta-theme">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TuTren">
+<meta name="description" content="Rastreo de trenes en tiempo real en España">
+<link rel="manifest" href="#" id="manifest-link">
+<title>TuTren – Trenes en tiempo real</title>
 
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
-    <link rel="icon" type="image/png" href="icons/icon-192.png">
-    
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 </head>
 <body>
 
-    <div id="app">
-        <div id="map"></div>
+<!-- DESKTOP BLOCKER -->
+<div id="desktop-block">
+  <div class="desktop-icon">🚆</div>
+  <div class="desktop-logo">TuTren</div>
+  <div class="desktop-msg">TuTren está diseñado para móvil y tablet.<br>Abre esta página desde tu smartphone para rastrear trenes en tiempo real.</div>
+</div>
 
-        <div class="ui-overlay">
-            
-            <div id="alertsHome"></div>
+<!-- LOADING -->
+<div id="loading">
+  <div class="loading-logo-wrap">
+    <div class="loading-icon">🚆</div>
+    <div class="loading-logo">TuTren</div>
+  </div>
+  <div>
+    <div class="loading-bar-wrap"><div class="loading-bar-fill" id="loading-fill"></div></div>
+  </div>
+  <div class="loading-text" id="loading-text">Cargando datos…</div>
+</div>
 
-            <div id="vehiclesHome"></div>
+<!-- APP -->
+<div id="app">
+  <div id="map"></div>
 
-            <div id="pwaBanner"></div>
-        </div>
+  <!-- TOP APP BAR -->
+  <div id="header">
+    <div class="top-app-bar">
+      <div class="app-bar-logo">
+        <div class="app-bar-logo-icon">🚆</div>
+        <span class="app-bar-title">TuTren</span>
+      </div>
 
-        <nav class="nav-bar">
-            <button class="nav-item active" onclick="showSection('home')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                <span>Inicio</span>
-            </button>
-            <button class="nav-item" onclick="showSection('routes')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                <span>Líneas</span>
-            </button>
-            <button class="nav-item" onclick="showSection('trains')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M7 21v-4m10 4v-4M2 11h20"/></svg>
-                <span>Trenes</span>
-            </button>
-            <button class="nav-item" onclick="showSection('alerts')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <span>Avisos</span>
-                <span id="abadge" class="badge" style="display:none">0</span>
-            </button>
-        </nav>
+      <!-- Theme toggle -->
+      <button class="md-icon-btn" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">
+        <span class="material-symbols-rounded" id="theme-icon">dark_mode</span>
+      </button>
+
+      <!-- Refresh -->
+      <button class="md-icon-btn" id="refresh-btn" title="Actualizar" aria-label="Actualizar">
+        <span class="material-symbols-rounded">refresh</span>
+      </button>
     </div>
+  </div>
 
-    <div id="modal-routes" class="modal">
-        <div class="modal-header">
-            <h2>Líneas de Cercanías</h2>
-            <button class="close-btn" onclick="hideModals()">✕</button>
+  <!-- FILTER SEGMENTS (mutually exclusive: Cercanías vs Larga Distancia) -->
+  <div class="filter-row" id="filter-row">
+    <button class="filter-segment active" data-filter="cercanias" aria-pressed="true">
+      <div class="seg-icon">C</div>
+      Cercanías
+      <span class="seg-count" id="count-cercanias">—</span>
+    </button>
+    <button class="filter-segment" data-filter="ld" aria-pressed="false">
+      <div class="seg-icon">LD</div>
+      Larga Distancia
+      <span class="seg-count" id="count-ld">—</span>
+    </button>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar" id="status-bar">
+    <div class="status-dot loading" id="status-dot"></div>
+    <span id="status-text">Conectando…</span>
+  </div>
+
+  <!-- ALERT BANNER -->
+  <div class="alert-banner" id="alert-banner">
+    <span class="alert-icon material-symbols-rounded" style="font-size:15px;">warning</span>
+    <span id="alert-text">Hay incidencias activas en la red</span>
+  </div>
+
+  <!-- STATION DETAIL PANEL -->
+  <div id="station-panel">
+    <div class="station-panel-inner">
+      <div class="panel-handle"></div>
+      <button class="panel-close" id="station-panel-close" aria-label="Cerrar">
+        <span class="material-symbols-rounded" style="font-size:18px;">close</span>
+      </button>
+      <div class="panel-header">
+        <div class="train-id-row">
+          <div class="train-badge badge-cercanias" id="station-panel-badge">Estación</div>
+          <div class="train-name" id="station-panel-name">Nombre Estación</div>
         </div>
-        <div class="modal-content">
-            <div id="routesList"></div>
-        </div>
+        <div class="train-sub" id="station-panel-sub">Próximos trenes</div>
+      </div>
+      <div class="stops-scroll" id="station-trains-list"></div>
     </div>
+  </div>
 
-    <div id="modal-trains" class="modal">
-        <div class="modal-header">
-            <h2>Trenes en circulación</h2>
-            <button class="close-btn" onclick="hideModals()">✕</button>
+  <!-- TRAIN DETAIL PANEL -->
+  <div id="train-panel">
+    <div class="panel-inner">
+      <div class="panel-handle"></div>
+      <button class="panel-close" id="panel-close" aria-label="Cerrar">
+        <span class="material-symbols-rounded" style="font-size:18px;">close</span>
+      </button>
+      <div class="panel-header">
+        <div class="train-id-row">
+          <div class="train-badge" id="panel-badge">Cercanías</div>
+          <div class="train-name" id="panel-name">C1 · Tren</div>
+          <div class="delay-chip delay-ok" id="panel-delay">A tiempo</div>
         </div>
-        <div class="modal-content">
-            <div id="vehiclesList"></div>
-        </div>
+        <div class="train-sub" id="panel-sub">Cargando información…</div>
+      </div>
+      <div class="stops-scroll" id="stops-list"></div>
     </div>
+  </div>
 
-    <div id="modal-alerts" class="modal">
-        <div class="modal-header">
-            <h2>Avisos de servicio</h2>
-            <button class="close-btn" onclick="hideModals()">✕</button>
-        </div>
-        <div class="modal-content">
-            <div id="alertsFull"></div>
-        </div>
+  <!-- PWA INSTALL -->
+  <div id="pwa-prompt">
+    <div class="pwa-top">
+      <div class="pwa-icon">🚆</div>
+      <div>
+        <div class="pwa-title">Instalar TuTren</div>
+        <div class="pwa-sub">Accede rápido desde tu pantalla de inicio</div>
+      </div>
     </div>
+    <div class="pwa-actions">
+      <button class="pwa-btn-install" id="pwa-install-btn">Instalar app</button>
+      <button class="pwa-btn-dismiss" id="pwa-dismiss-btn">Ahora no</button>
+    </div>
+  </div>
+</div>
 
-    <div id="toast" class="toast"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script src="script.js"></script>
+<script src="script.js"> </script>
 </body>
 </html>
