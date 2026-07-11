@@ -377,21 +377,26 @@ function createTrainSvgIcon(label, type) {
 function renderMarkers() {
   const shown = new Set();
   state.vehicles.forEach(v => {
-    if (v.type !== state.activeFilter) return;
+    // 🧹 BORRADO: Ya no filtramos por state.activeFilter. ¡Pintamos todo!
     if (!v.lat || !v.lon || isNaN(v.lat) || isNaN(v.lon)) return;
 
     shown.add(v.id);
     const label = getRouteLabel(v.tripId, v.type);
 
     if (state.markers[v.id]) {
-      // Actualizar posición
+      // 1. Actualizar posición geométrica
       state.markers[v.id].setLatLng([v.lat, v.lon]);
       
-      // CORRECCIÓN CLAVE: Usamos innerHTML para actualizar la etiqueta sin destruir el tren SVG
-      const el = state.markers[v.id].getElement();
-      if (el) {
-        el.innerHTML = createTrainSvgIcon(label, v.type);
-      }
+      // 🛡️ CORRECCIÓN CLAVE: Usamos setIcon de Leaflet en lugar de romper el innerHTML.
+      // Esto elimina por completo los errores 404 de /undefined.
+      const newIcon = L.divIcon({
+        className: 'm3-train-marker-wrapper',
+        html: createTrainSvgIcon(label, v.type),
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      state.markers[v.id].setIcon(newIcon);
+
     } else {
       // Crear marcador por primera vez con el polígono del tren
       const icon = L.divIcon({
@@ -419,7 +424,7 @@ function renderMarkers() {
     }
   });
 
-  // Eliminar marcadores ocultos
+  // Eliminar marcadores ocultos (trenes que ya no están activos)
   Object.keys(state.markers).forEach(id => {
     if (!shown.has(id)) {
       map.removeLayer(state.markers[id]);
