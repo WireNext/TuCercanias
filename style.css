@@ -228,17 +228,6 @@ html, body {
 /* ═══════════════════════════════════════════════════════
    FILTER TABS (M3 – mutually exclusive: only C or LD)
    ═══════════════════════════════════════════════════════ */
-#filter-row {
-  position: absolute; z-index: 100;
-  left: 0; right: 0;
-  background: var(--md-sys-color-surface-container);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  display: flex; align-items: stretch;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  pointer-events: all;
-  overflow: hidden;
-}
 
 /* Two-segment toggle – full width, equal halves */
 .filter-segment {
