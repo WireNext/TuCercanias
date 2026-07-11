@@ -419,7 +419,6 @@ function renderMarkers() {
     }
   });
 }
-
 // ─── STATION MARKERS ───────────────────────────────────
 function renderStationMarkers() {
   if (window.stationLayer) {
@@ -431,13 +430,11 @@ function renderStationMarkers() {
   if (!RENFE_STATIONS || RENFE_STATIONS.length === 0) return;
 
   RENFE_STATIONS.forEach(st => {
-    // ⚠️ CAMBIO: Ahora usamos 'LATITUD' y 'LONGITUD' en vez de 'la' y 'lo'
-    let lat = parseFloat(String(st.LATITUD || '').replace(',', '.'));
-    let lon = parseFloat(String(st.LONGITUD || '').replace(',', '.'));
+    let lat = parseFloat(String(st.la || '').replace(',', '.'));
+    let lon = parseFloat(String(st.lo || '').replace(',', '.'));
     if (isNaN(lat) || isNaN(lon)) return;
 
-    // ⚠️ CAMBIO: Ahora usamos 'DESCRIPCION' en vez de 'n'
-    const stName = st.DESCRIPCION || 'Estación';
+    const stName = st.n || 'Estación';
     const stIcon = L.divIcon({
       className: 'custom-station-icon',
       html: `<div style="width:10px;height:10px;background:#3b70a3;border:2px solid rgba(255,255,255,0.75);border-radius:50%;box-shadow:0 0 4px rgba(59,112,163,0.5);"></div>`,
@@ -445,14 +442,11 @@ function renderStationMarkers() {
     });
 
     const marker = L.marker([lat, lon], { icon: stIcon });
-    
-    // Al hacer click, pasamos todo el objeto modificado al panel
     marker.on('click', () => { openStationPanel(st); });
-    
     marker.bindTooltip(stName, {
       permanent: false, direction: 'top',
       className: 'station-tooltip', offset: [0, -5]
-     });
+    });
 
     window.stationLayer.addLayer(marker);
   });
