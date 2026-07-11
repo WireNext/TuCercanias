@@ -215,13 +215,20 @@ async function loadStaticData() {
 // ─── LOAD REALTIME ─────────────────────────────────────
 async function loadRealtime() {
   try {
+    // 🛡️ Capturamos los errores de fetch individuales por si una URL responde HTML o da 404
     const [vcJson, tuJson, vldJson, tuldJson, alertJson] = await Promise.all([
-      fetchJSON(URLS.vehiclesCercanias),
-      fetchJSON(URLS.tripUpdatesCercanias),
-      fetchJSON(URLS.vehiclesLD),
-      fetchJSON(URLS.tripUpdatesLD),
+      fetchJSON(URLS.vehiclesCercanias).catch(() => ({ entity: [] })),
+      fetchJSON(URLS.tripUpdatesCercanias).catch(() => ({ entity: [] })),
+      fetchJSON(URLS.vehiclesLD).catch(() => ({ entity: [] })),
+      fetchJSON(URLS.tripUpdatesLD).catch(() => ({ entity: [] })),
       fetchJSON(URLS.alerts).catch(() => ({ entity: [] })),
     ]);
+
+    // Si todos han fallado o devuelto vacíos por culpa de un fallo del servidor, salimos sin romper nada
+    if (!vcJson.entity && !vldJson.entity) {
+      console.warn("Las APIs de tiempo real no han devuelto datos válidos (posible mantenimiento).");
+      return;
+    }
 
     state.realtimeDelays = {};
     [...(tuJson.entity || []), ...(tuldJson.entity || [])].forEach(e => {
@@ -264,20 +271,27 @@ async function loadRealtime() {
     });
     state.vehicles = newVehicles;
 
-    // Update counts
+    // 🛡️ Control de seguridad para los contadores (Evita errores si los borraste del HTML)
     const cCount = newVehicles.filter(v => v.type === 'cercanias').length;
     const ldCount = newVehicles.filter(v => v.type === 'ld').length;
-    document.getElementById('count-cercanias').textContent = cCount || '0';
-    document.getElementById('count-ld').textContent = ldCount || '0';
+    
+    const elCountCercanias = document.getElementById('count-cercanias');
+    const elCountLd = document.getElementById('count-ld');
+    if (elCountCercanias) elCountCercanias.textContent = cCount || '0';
+    if (elCountLd) elCountLd.textContent = ldCount || '0';
 
     // Alerts
     const alerts = alertJson.entity || [];
     const activeAlerts = alerts.filter(a => a.alert?.headerText);
-    if (activeAlerts.length > 0) {
-      const banner = document.getElementById('alert-banner');
+    const banner = document.getElementById('alert-banner');
+    
+    if (activeAlerts.length > 0 && banner) {
       const a = activeAlerts[0].alert;
       const txt = a.headerText?.translation?.[0]?.text || 'Incidencias activas en la red';
-      document.getElementById('alert-text').textContent = `${activeAlerts.length} incidencia${activeAlerts.length > 1 ? 's' : ''}: ${txt.slice(0, 80)}${txt.length > 80 ? '…' : ''}`;
+      const elAlertText = document.getElementById('alert-text');
+      if (elAlertText) {
+        elAlertText.textContent = `${activeAlerts.length} incidencia${activeAlerts.length > 1 ? 's' : ''}: ${txt.slice(0, 80)}${txt.length > 80 ? '…' : ''}`;
+      }
       banner.classList.add('visible');
       setTimeout(() => banner.classList.remove('visible'), 8000);
     }
@@ -285,7 +299,7 @@ async function loadRealtime() {
     updateStatus('ok', `${newVehicles.length} trenes · ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`);
     renderMarkers();
   } catch(err) {
-    console.error('Realtime error:', err);
+    console.error('Realtime error controlado:', err);
     updateStatus('error', 'Error al conectar — reintentando…');
   }
 }
