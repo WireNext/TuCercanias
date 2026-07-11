@@ -322,20 +322,26 @@ function getRouteLabel(tripId, type) {
 }
 
 // Función auxiliar para generar el polígono SVG estilo Material 3 con el texto integrado
+// Función para generar un polígono minimalista con silueta de tren (Estilo M3)
 function createTrainSvgIcon(label, type) {
-  // M3: Asignamos variables de color semánticas según el tipo de tren
   let strokeColor = "var(--md-sys-color-outline-variant, #44444e)";
   
-  // Generamos un polígono estilizado que simula la dirección o cabina de un tren (con esquinas redondeadas en el renderizado)
-  // El texto se coloca en el centro exacto del contenedor geométrico (x="50%", y="55%")
+  // Dibujamos un polígono geométrico limpio que representa el frontal/cabina de un tren moderno
   return `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" class="m3-train-svg">
-      <path d="M16,2 L28,12 C29.5,13.5 29,16 27,16 L22,16 L22,28 C22,29.5 20.5,30 19,30 L13,30 C11.5,30 10,29.5 10,28 L10,16 L5,16 C3,16 2.5,13.5 4,12 L16,2 Z" 
+      <path d="M6,6 C6,4.5 7.5,4 9,4 L23,4 C24.5,4 26,4.5 26,6 L26,24 C26,27 24,28 16,28 C8,28 6,27 6,24 Z" 
             class="m3-train-poly ${type}" 
             stroke="${strokeColor}" 
             stroke-width="1.5" 
             stroke-linejoin="round"/>
-      <text x="50%" y="58%" 
+      
+      <path d="M9,7 L23,7 C24,7 24,8 24,9 L24,12 C24,13 23,13.5 22,13.5 L10,13.5 C9,13.5 8,13 8,12 L8,9 C8,8 8,7 9,7 Z" 
+            fill="rgba(255, 255, 255, 0.25)" />
+      
+      <circle cx="10" cy="24" r="1.5" fill="rgba(255,255,255,0.6)" />
+      <circle cx="22" cy="24" r="1.5" fill="rgba(255,255,255,0.6)" />
+
+      <text x="50%" y="60%" 
             text-anchor="middle" 
             dominant-baseline="middle" 
             class="m3-train-text">
@@ -355,22 +361,21 @@ function renderMarkers() {
     const label = getRouteLabel(v.tripId, v.type);
 
     if (state.markers[v.id]) {
-      // 1. Actualizamos posición
+      // Actualizar posición
       state.markers[v.id].setLatLng([v.lat, v.lon]);
       
-      // 2. CORRECCIÓN CLAVE: Actualizamos el HTML interno completo en vez de hacer textContent,
-      // para evitar romper la estructura del polígono SVG cuando el tren cambie de posición.
+      // CORRECCIÓN CLAVE: Usamos innerHTML para actualizar la etiqueta sin destruir el tren SVG
       const el = state.markers[v.id].getElement();
       if (el) {
         el.innerHTML = createTrainSvgIcon(label, v.type);
       }
     } else {
-      // 3. Crear el icono por primera vez con el polígono integrado
+      // Crear marcador por primera vez con el polígono del tren
       const icon = L.divIcon({
         className: 'm3-train-marker-wrapper',
         html: createTrainSvgIcon(label, v.type),
         iconSize: [32, 32],
-        iconAnchor: [16, 16], // Centrado exacto del eje del polígono
+        iconAnchor: [16, 16]
       });
 
       const marker = L.marker([v.lat, v.lon], {
@@ -391,7 +396,7 @@ function renderMarkers() {
     }
   });
 
-  // Remove hidden markers
+  // Eliminar marcadores ocultos
   Object.keys(state.markers).forEach(id => {
     if (!shown.has(id)) {
       map.removeLayer(state.markers[id]);
@@ -399,7 +404,6 @@ function renderMarkers() {
     }
   });
 }
-
 // ─── STATION MARKERS ───────────────────────────────────
 function renderStationMarkers() {
   if (window.stationLayer) {
