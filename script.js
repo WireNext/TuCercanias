@@ -35,7 +35,6 @@ const state = {
   stationMarkers: {},
   renfeStations: [],
   stopsByName: {},
-  activeFilter: 'cercanias', // DEFAULT: cercanias selected
   selectedVehicle: null,
   loading: true,
 };
