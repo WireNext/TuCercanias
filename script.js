@@ -142,8 +142,13 @@ function formatDelay(seconds) {
 let loadProgress = 0;
 function setProgress(p, msg) {
   loadProgress = p;
-  document.getElementById('loading-fill').style.width = p + '%';
-  if (msg) document.getElementById('loading-text').textContent = msg;
+  
+  // Con el operador "?." se evita el error si el elemento no existe en el DOM
+  document.getElementById('loading-fill')?.style.setProperty('width', p + '%');
+  if (msg) {
+    const textEl = document.getElementById('loading-text');
+    if (textEl) textEl.textContent = msg;
+  }
 }
 
 const URLS = {
@@ -354,29 +359,36 @@ function getRouteLabel(tripId, type) {
   return sn.slice(0, 3) || (type === 'ld' ? 'LD' : 'C?');
 }
 
-// Función auxiliar para generar el polígono SVG estilo Material 3 con el texto integrado
-// Función para generar un polígono minimalista con silueta de tren (Estilo M3)
-function createTrainSvgIcon(label, type) {
-  let strokeColor = "var(--md-sys-color-outline-variant, #44444e)";
-  
-  // Dibujamos un polígono geométrico limpio que representa el frontal/cabina de un tren moderno
+// Función para generar un icono en forma de Flecha/Puntero
+function createTrainSvgIcon(label, type, bearing = 0) {
+  let strokeColor = "var(--md-sys-color-outline-variant, #ffffff)";
+
+  // Diseñamos una flecha estilizada tipo navegación GPS con el texto centrado
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" class="m3-train-svg">
-      <path d="M6,6 C6,4.5 7.5,4 9,4 L23,4 C24.5,4 26,4.5 26,6 L26,24 C26,27 24,28 16,28 C8,28 6,27 6,24 Z" 
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36" 
+         class="m3-train-svg" 
+         style="transform: rotate(${bearing}deg); transition: transform 0.4s ease;">
+      <!-- Sombra de la flecha -->
+      <path d="M18 2 L32 30 L18 23 L4 30 Z" 
+            fill="rgba(0,0,0,0.25)" 
+            transform="translate(0, 2)" />
+      
+      <!-- Cuerpo principal de la flecha -->
+      <path d="M18 2 L32 30 L18 23 L4 30 Z" 
             class="m3-train-poly ${type}" 
+            fill="#3b70a3"
             stroke="${strokeColor}" 
-            stroke-width="1.5" 
+            stroke-width="2" 
             stroke-linejoin="round"/>
       
-      <path d="M9,7 L23,7 C24,7 24,8 24,9 L24,12 C24,13 23,13.5 22,13.5 L10,13.5 C9,13.5 8,13 8,12 L8,9 C8,8 8,7 9,7 Z" 
-            fill="rgba(255, 255, 255, 0.25)" />
-      
-      <circle cx="10" cy="24" r="1.5" fill="rgba(255,255,255,0.6)" />
-      <circle cx="22" cy="24" r="1.5" fill="rgba(255,255,255,0.6)" />
-
-      <text x="50%" y="60%" 
+      <!-- Contenedor del texto (se mantiene horizontal o adaptado dentro del cuerpo) -->
+      <text x="18" y="19" 
             text-anchor="middle" 
             dominant-baseline="middle" 
+            fill="#ffffff"
+            font-size="9"
+            font-weight="bold"
+            style="transform-origin: center; transform: rotate(${-bearing}deg);" 
             class="m3-train-text">
         ${label}
       </text>
@@ -387,33 +399,34 @@ function createTrainSvgIcon(label, type) {
 function renderMarkers() {
   const shown = new Set();
   state.vehicles.forEach(v => {
-    // 🧹 BORRADO: Ya no filtramos por state.activeFilter. ¡Pintamos todo!
     if (!v.lat || !v.lon || isNaN(v.lat) || isNaN(v.lon)) return;
 
     shown.add(v.id);
     const label = getRouteLabel(v.tripId, v.type);
+    
+    // Obtenemos el rumbo/bearing si viene en los datos del GPS del tren (por defecto 0º = Norte)
+    const bearing = v.bearing || v.heading || 0;
 
     if (state.markers[v.id]) {
-      // 1. Actualizar posición geométrica
+      // Actualizar posición geométrica
       state.markers[v.id].setLatLng([v.lat, v.lon]);
       
-      // 🛡️ CORRECCIÓN CLAVE: Usamos setIcon de Leaflet en lugar de romper el innerHTML.
-      // Esto elimina por completo los errores 404 de /undefined.
+      // Actualizamos icono con el nuevo rumbo y etiqueta
       const newIcon = L.divIcon({
         className: 'm3-train-marker-wrapper',
-        html: createTrainSvgIcon(label, v.type),
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        html: createTrainSvgIcon(label, v.type, bearing),
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
       state.markers[v.id].setIcon(newIcon);
 
     } else {
-      // Crear marcador por primera vez con el polígono del tren
+      // Crear marcador por primera vez con el icono de flecha
       const icon = L.divIcon({
         className: 'm3-train-marker-wrapper',
-        html: createTrainSvgIcon(label, v.type),
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        html: createTrainSvgIcon(label, v.type, bearing),
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
 
       const marker = L.marker([v.lat, v.lon], {
@@ -434,7 +447,7 @@ function renderMarkers() {
     }
   });
 
-  // Eliminar marcadores ocultos (trenes que ya no están activos)
+  // Eliminar marcadores ocultos
   Object.keys(state.markers).forEach(id => {
     if (!shown.has(id)) {
       map.removeLayer(state.markers[id]);
@@ -470,17 +483,30 @@ function renderStationMarkers() {
     if (isNaN(lat) || isNaN(lon)) return;
 
     const stName = st.n || st.DESCRIPCION || 'Estación';
+    
+    // Icono con forma de Gota (Pin Drop SVG)
     const stIcon = L.divIcon({
       className: 'custom-station-icon',
-      html: `<div style="width:10px;height:10px;background:#3b70a3;border:2px solid rgba(255,255,255,0.75);border-radius:50%;box-shadow:0 0 4px rgba(59,112,163,0.5);"></div>`,
-      iconSize: [10, 10], iconAnchor: [5, 5]
+      html: `
+        <div style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3)); display: flex; align-items: center; justify-content: center;">
+          <svg width="20" height="26" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#3b70a3" stroke="#ffffff" stroke-width="2"/>
+            <circle cx="12" cy="11" r="4.5" fill="#ffffff"/>
+          </svg>
+        </div>
+      `,
+      iconSize: [20, 26],
+      iconAnchor: [10, 26], // Anclaje centrado abajo en la punta de la gota
+      popupAnchor: [0, -26]
     });
 
     const marker = L.marker([lat, lon], { icon: stIcon });
     marker.on('click', () => { openStationPanel(st); });
     marker.bindTooltip(stName, {
-      permanent: false, direction: 'top',
-      className: 'station-tooltip', offset: [0, -5]
+      permanent: false, 
+      direction: 'top',
+      className: 'station-tooltip', 
+      offset: [0, -24]
     });
 
     window.stationLayer.addLayer(marker);
