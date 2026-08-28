@@ -22,25 +22,6 @@
 </head>
 <body>
 
-<!-- DESKTOP BLOCKER
-<div id="desktop-block">
-  <div class="desktop-icon">🚆</div>
-  <div class="desktop-logo">TuTren</div>
-  <div class="desktop-msg">TuTren está diseñado para móvil y tablet.<br>Abre esta página desde tu smartphone para rastrear trenes en tiempo real.</div>
-</div> -->
-
-<!-- LOADING -->
-<div id="loading">
-  <div class="loading-logo-wrap">
-    <div class="loading-icon">🚆</div>
-    <div class="loading-logo">TuCercanias</div>
-  </div>
-  <div>
-    <div class="loading-bar-wrap"><div class="loading-bar-fill" id="loading-fill"></div></div>
-  </div>
-  <div class="loading-text" id="loading-text">Cargando datos…</div>
-</div>
-
 <!-- APP -->
 <div id="app">
   <div id="map"></div>
@@ -63,15 +44,6 @@
         <span class="material-symbols-rounded">refresh</span>
       </button>
     </div>
-  </div>
-
-  <!-- FILTER SEGMENTS (mutually exclusive: Cercanías vs Larga Distancia) -->
-  <div class="filter-row" id="filter-row">
-    <button class="filter-segment active" data-filter="cercanias" aria-pressed="true">
-      <div class="seg-icon">C</div>
-      Cercanías
-      <span class="seg-count" id="count-cercanias">—</span>
-    </button>
   </div>
 
   <!-- STATUS BAR -->
@@ -139,6 +111,6 @@
   </div>
 </div>
 
-<script src="script.js"> </script>
+<script src="script.js"></script>
 </body>
 </html>

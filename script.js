@@ -8,21 +8,43 @@ const PROXY = '/api/proxy?url=';
 // Definimos la variable global que contendrá las estaciones
 let RENFE_STATIONS = [];
 
-// Función para cargar las estaciones desde el JSON
 async function loadStations() {
+  const archivosJson = [
+    'estaciones.json'
+  ];
+
   try {
-    const response = await fetch('estaciones.json'); // Asegúrate de que la ruta sea correcta
-    if (!response.ok) throw new Error('No se pudo mapear el archivo JSON');
-    
-    // Guardamos los datos en la variable global
-    RENFE_STATIONS = await response.json();
-    
-    // ¡Pintamos los marcadores AHORA que ya tenemos los datos!
+    // 1. Descarga e inspección de respuestas en paralelo
+    const respuestas = await Promise.all(
+      archivosJson.map(archivo => fetch(archivo))
+    );
+
+    const respuestaFallida = respuestas.find(res => !res.ok);
+    if (respuestaFallida) {
+      throw new Error(`Error ${respuestaFallida.status} al solicitar ${respuestaFallida.url}`);
+    }
+
+    // 2. Conversión a JSON en paralelo
+    const datosJson = await Promise.all(respuestas.map(res => res.json()));
+
+    // 3. Aplanado de arrays
+    const listaCompleta = datosJson.flat();
+
+    // 4. (Opcional) Desduplicado por código/ID de estación si fuera necesario
+    // RENFE_STATIONS = Array.from(new Map(listaCompleta.map(est => [est.id, est])).values());
+
+    RENFE_STATIONS = listaCompleta;
+
+    console.log(`Cargadas ${RENFE_STATIONS.length} estaciones desde ${archivosJson.length} archivo(s).`);
+
+    // 5. Renderizado en el mapa
     renderStationMarkers();
+
   } catch (error) {
-    console.error("Error cargando estaciones:", error);
+    console.error("Error al cargar las estaciones:", error);
   }
 }
+
 // ─── STATE ─────────────────────────────────────────────
 const state = {
   stops: {},
@@ -136,82 +158,56 @@ const URLS = {
 
 // ─── LOAD STATIC DATA ──────────────────────────────────
 async function loadStaticData() {
-  setProgress(5, 'Cargando paradas de Cercanías…');
-  const [stopsCercanias, stopsLD] = await Promise.all([
-    fetchCSV(URLS.stopsCercanias),
-    fetchCSV(URLS.stopsLD),
-  ]);
-  stopsCercanias.forEach(s => {
-    state.stops[s.stop_id] = { name: s.stop_name, lat: parseFloat(s.stop_lat), lon: parseFloat(s.stop_lon), type: 'cercanias' };
-  });
-  stopsLD.forEach(s => {
-    if (!state.stops[s.stop_id])
-      state.stops[s.stop_id] = { name: s.stop_name, lat: parseFloat(s.stop_lat), lon: parseFloat(s.stop_lon), type: 'ld' };
-  });
+  setProgress(10, 'Cargando estaciones de Renfe…');
 
-  setProgress(25, 'Cargando rutas…');
-  const [routesCercanias, routesLD] = await Promise.all([
-    fetchCSV(URLS.routesCercanias),
-    fetchCSV(URLS.routesLD),
-  ]);
-  routesCercanias.forEach(r => {
-    state.routes[r.route_id] = { shortName: r.route_short_name, longName: r.route_long_name, color: r.route_color, type: 'cercanias' };
-  });
-  routesLD.forEach(r => {
-    state.routes[r.route_id] = { shortName: r.route_short_name, longName: r.route_long_name, color: r.route_color, type: 'ld' };
-  });
+  const archivosJson = [
+    'estaciones.json'
+    // Añade aquí más JSONs si en el futuro separas por núcleos
+  ];
 
-  setProgress(45, 'Cargando viajes…');
-  const [tripsCercanias, tripsLD] = await Promise.all([
-    fetchCSV(URLS.tripsCercanias),
-    fetchCSV(URLS.tripsLD),
-  ]);
-  tripsCercanias.forEach(t => {
-    state.trips[t.trip_id] = { routeId: t.route_id, headsign: t.trip_headsign, type: 'cercanias' };
-  });
-  tripsLD.forEach(t => {
-    state.trips[t.trip_id] = { routeId: t.route_id, headsign: t.trip_headsign, type: 'ld' };
-  });
-
-  setProgress(60, 'Cargando horarios…');
   try {
-    const [stCercanias, stLD] = await Promise.all([
-      fetchCSV(URLS.stopTimescercanias),
-      fetchCSV(URLS.stopTimesLD),
-    ]);
-    stCercanias.forEach(st => {
-      if (!state.stopTimes[st.trip_id]) state.stopTimes[st.trip_id] = [];
-      state.stopTimes[st.trip_id].push({ stopId: st.stop_id, arrival: st.arrival_time, departure: st.departure_time, seq: parseInt(st.stop_sequence) || 0 });
-    });
-    stLD.forEach(st => {
-      if (!state.stopTimes[st.trip_id]) state.stopTimes[st.trip_id] = [];
-      state.stopTimes[st.trip_id].push({ stopId: st.stop_id, arrival: st.arrival_time, departure: st.departure_time, seq: parseInt(st.stop_sequence) || 0 });
-    });
-    Object.keys(state.stopTimes).forEach(tid => {
-      state.stopTimes[tid].sort((a, b) => a.seq - b.seq);
-    });
-  } catch(e) {
-    console.warn('stop_times load error:', e);
-  }
+    // 1. Descargamos los JSONs en paralelo
+    const respuestas = await Promise.all(
+      archivosJson.map(archivo => fetch(archivo))
+    );
 
-  setProgress(85, 'Conectando tiempo real…');
+    // 2. Comprobamos errores 404/500
+    for (const res of respuestas) {
+      if (!res.ok) {
+        throw new Error(`No se pudo cargar ${res.url} (Status: ${res.status})`);
+      }
+    }
 
-// ─── NUEVO: CARGAR EL JSON DE ESTACIONES ANTES DE RENDERIZAR ───
-  setProgress(95, 'Cargando mapa de estaciones…');
-  try {
-    const response = await fetch('estaciones.json'); // ⚠️ Asegúrate de que el archivo se llame así y esté en tu servidor/carpeta
-    if (!response.ok) throw new Error('No se pudo leer estaciones.json');
-    
-    // Guardamos los datos en tu variable global (asumiendo que declaraste let RENFE_STATIONS = []; arriba)
-    RENFE_STATIONS = await response.json();
-    console.log(`Estaciones cargadas con éxito: ${RENFE_STATIONS.length}`);
+    // 3. Convertimos a objeto JavaScript
+    const datosJson = await Promise.all(respuestas.map(res => res.json()));
+
+    // 4. Guardamos el array completo en la variable global
+    RENFE_STATIONS = datosJson.flat();
+
+    // 5. Opcional: Si el resto de tu app (buscadores, filtros) sigue usando `state.stops`
+    RENFE_STATIONS.forEach(estacion => {
+      // Ajusta las propiedades 'codigo', 'nombre', 'lat', 'lng' según la estructura de tu JSON
+      const id = estacion.codigo || estacion.stop_id || estacion.id;
+      state.stops[id] = {
+        name: estacion.nombre || estacion.stop_name,
+        lat: parseFloat(estacion.lat || estacion.stop_lat),
+        lon: parseFloat(estacion.lon || estacion.lng || estacion.stop_lon),
+        type: estacion.tipo || 'renfe'
+      };
+    });
+
+    setProgress(70, 'Procesando estaciones…');
+    console.log(`¡Éxito! Cargarán ${RENFE_STATIONS.length} estaciones.`);
+
+    setProgress(100, 'Carga completa.');
+
+    // 6. AHORA SÍ: Pintamos los marcadores de forma segura porque los datos ya existen en memoria
+    renderStationMarkers();
+
   } catch (error) {
-    console.error('Error crítico al cargar las estaciones del mapa:', error);
+    console.error("Error crítico cargando las estaciones:", error);
   }
-
-  renderStationMarkers();
 }
-
 // ─── LOAD REALTIME ─────────────────────────────────────
 async function loadRealtime() {
   try {
