@@ -49,6 +49,7 @@ async function loadStations() {
 const state = {
   stops: {},
   stopTimes: {},
+  shapes: {},
   trips: {},
   routes: {},
   realtimeDelays: {},
@@ -387,19 +388,21 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
 
 // Obtener la dirección exacta utilizando las coordenadas del trazado
 function getTrainBearing(vehicle) {
-  if (typeof vehicle.bearing === 'number' && vehicle.bearing !== 0) {
+  if (typeof vehicle?.bearing === 'number' && vehicle.bearing !== 0) {
     return vehicle.bearing;
   }
 
-  const trip = state.trips[vehicle.tripId];
-  if (!trip || !trip.shapeId || !state.shapes[trip.shapeId]) {
+  const trip = state.trips?.[vehicle?.tripId];
+  const shapeId = trip?.shapeId;
+
+  // Si state.shapes o el shapeId no existen todavía, retornamos 0 de forma segura
+  if (!state.shapes || !shapeId || !state.shapes[shapeId]) {
     return 0;
   }
 
-  const shapePoints = state.shapes[trip.shapeId];
-  if (shapePoints.length < 2) return 0;
+  const shapePoints = state.shapes[shapeId];
+  if (!Array.isArray(shapePoints) || shapePoints.length < 2) return 0;
 
-  // Buscar el nodo del trazado más cercano a la posición GPS del tren
   let closestIdx = 0;
   let minDistance = Infinity;
 
@@ -411,11 +414,10 @@ function getTrainBearing(vehicle) {
     }
   });
 
-  // Tomamos el vector del punto actual al siguiente del trazado
   const p1 = shapePoints[closestIdx];
   const p2 = shapePoints[closestIdx + 1] || shapePoints[closestIdx];
 
-  if (p1.lat === p2.lat && p1.lon === p2.lon) return 0;
+  if (!p1 || !p2 || (p1.lat === p2.lat && p1.lon === p2.lon)) return 0;
 
   return calculateBearing(p1.lat, p1.lon, p2.lat, p2.lon);
 }
@@ -790,6 +792,7 @@ function openTrainPanel(vehicleId) {
 
   if (trip.shapeId && state.shapes[trip.shapeId]) {
     const points = state.shapes[trip.shapeId].map(pt => [pt.lat, pt.lon]);
+    const rawColor = route?.color ? String(route.color).replace('#', '') : null;
     const routeColor = route.color ? `#${route.color}` : '#3b70a3';
 
     activeTripPolyline = L.polyline(points, {
@@ -1082,12 +1085,14 @@ async function main() {
     setProgress(100, 'Listo');
     setTimeout(() => {
       const loading = document.getElementById('loading');
-      loading.classList.add('fade');
-      setTimeout(() => loading.remove(), 400);
+      // 🛡️ Añadimos "?." para evitar el error si "loading" es null
+      loading?.classList.add('fade');
+      setTimeout(() => loading?.remove(), 400);
     }, 300);
   } catch(err) {
     console.error(err);
-    document.getElementById('loading-text').textContent = 'Error al cargar datos. Reintentando…';
+    const loadingText = document.getElementById('loading-text');
+    if (loadingText) loadingText.textContent = 'Error al cargar datos. Reintentando…';
     setTimeout(main, 3000);
     return;
   }
