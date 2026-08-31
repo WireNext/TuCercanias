@@ -549,14 +549,6 @@ function renderMarkers() {
   });
 }
 
-  // Eliminar marcadores ocultos
-  Object.keys(state.markers).forEach(id => {
-    if (!shown.has(id)) {
-      map.removeLayer(state.markers[id]);
-      delete state.markers[id];
-    }
-  });
-
 // ─── STATION MARKERS ───────────────────────────────────
 function renderStationMarkers() {
   if (window.stationLayer) {
