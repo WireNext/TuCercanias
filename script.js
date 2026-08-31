@@ -556,7 +556,6 @@ function renderMarkers() {
       delete state.markers[id];
     }
   });
-}
 
 // ─── STATION MARKERS ───────────────────────────────────
 function renderStationMarkers() {
