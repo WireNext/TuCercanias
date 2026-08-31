@@ -159,6 +159,7 @@ const URLS = {
   stopTimescercanias: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/stop_times.csv',
   tripsCercanias: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/trips.csv',
   routesCercanias: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/routes.csv',
+  shapesCercanias: 'https://raw.githubusercontent.com/WireNext/cercaniasgtfs/refs/heads/main/data_csv/shapes.csv'
 };
 
 // ─── LOAD STATIC DATA ──────────────────────────────────
@@ -201,9 +202,31 @@ async function loadStaticData() {
   } catch (error) {
     console.error('Error cargando las paradas/estaciones:', error);
   }
+// ─── CARGA DE SHAPES (NUEVO) ──────────────────────────
+  setProgress(25, 'Cargando trazados del mapa (shapes)…');
+  try {
+    const rawShapes = await fetchCSV(URLS.shapesCercanias);
+    rawShapes.forEach(sp => {
+      const shapeId = sp.shape_id;
+      if (!state.shapes[shapeId]) state.shapes[shapeId] = [];
+      
+      state.shapes[shapeId].push({
+        lat: parseFloat(sp.shape_pt_lat),
+        lon: parseFloat(sp.shape_pt_lon),
+        seq: parseInt(sp.shape_pt_sequence) || 0
+      });
+    });
 
-  // 2. Cargamos las rutas GTFS
-  setProgress(35, 'Cargando rutas…');
+    // Ordenar los puntos de cada trazado por su secuencia
+    Object.keys(state.shapes).forEach(id => {
+      state.shapes[id].sort((a, b) => a.seq - b.seq);
+    });
+  } catch (error) {
+    console.warn('Error cargando shapes:', error);
+  }
+
+  // Cargamos rutas GTFS
+  setProgress(45, 'Cargando rutas…');
   try {
     const routesCercanias = await fetchCSV(URLS.routesCercanias);
     routesCercanias.forEach(r => {
@@ -218,14 +241,15 @@ async function loadStaticData() {
     console.warn('Error cargando routes:', error);
   }
 
-  // 3. Cargamos los viajes GTFS
-  setProgress(60, 'Cargando viajes…');
+  // Cargamos viajes GTFS (Guardamos también el shape_id de cada viaje)
+  setProgress(65, 'Cargando viajes…');
   try {
     const tripsCercanias = await fetchCSV(URLS.tripsCercanias);
     tripsCercanias.forEach(t => {
       state.trips[t.trip_id] = { 
         routeId: t.route_id, 
         headsign: t.trip_headsign, 
+        shapeId: t.shape_id, // 👈 Guardamos la referencia al trazado
         type: 'cercanias' 
       };
     });
@@ -233,8 +257,8 @@ async function loadStaticData() {
     console.warn('Error cargando trips:', error);
   }
 
-  // 4. Cargamos los horarios por parada GTFS
-  setProgress(80, 'Cargando horarios…');
+  // Cargamos los horarios por parada GTFS
+  setProgress(85, 'Cargando horarios…');
   try {
     const stCercanias = await fetchCSV(URLS.stopTimescercanias);
     stCercanias.forEach(st => {
@@ -247,7 +271,6 @@ async function loadStaticData() {
       });
     });
 
-    // Ordenamos las paradas de cada viaje secuencialmente
     Object.keys(state.stopTimes).forEach(tid => {
       state.stopTimes[tid].sort((a, b) => a.seq - b.seq);
     });
@@ -256,8 +279,6 @@ async function loadStaticData() {
   }
 
   setProgress(100, 'Carga completa.');
-
-  // 5. Renderizamos los marcadores de las estaciones en el mapa
   renderStationMarkers();
 }
 // ─── LOAD REALTIME ─────────────────────────────────────
@@ -361,46 +382,42 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
   const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
             Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
 
-  const brng = toDeg(Math.atan2(y, x));
-  return (brng + 360) % 360; // Normaliza el ángulo entre 0º y 360º
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
+// Obtener la dirección exacta utilizando las coordenadas del trazado
 function getTrainBearing(vehicle) {
-  // Si los datos en tiempo real ya traen bearing/heading válido, lo usamos
   if (typeof vehicle.bearing === 'number' && vehicle.bearing !== 0) {
     return vehicle.bearing;
   }
 
-  const tripStops = state.stopTimes[vehicle.tripId];
-  if (!tripStops || tripStops.length === 0) return 0;
+  const trip = state.trips[vehicle.tripId];
+  if (!trip || !trip.shapeId || !state.shapes[trip.shapeId]) {
+    return 0;
+  }
 
-  // Buscar el índice de la parada donde está el tren o la última superada
-  const currentStopId = vehicle.stopId;
-  let nextStopIndex = -1;
+  const shapePoints = state.shapes[trip.shapeId];
+  if (shapePoints.length < 2) return 0;
 
-  if (currentStopId) {
-    const currentIndex = tripStops.findIndex(s => s.stopId === currentStopId);
-    if (currentIndex !== -1 && currentIndex < tripStops.length - 1) {
-      nextStopIndex = currentIndex + 1;
+  // Buscar el nodo del trazado más cercano a la posición GPS del tren
+  let closestIdx = 0;
+  let minDistance = Infinity;
+
+  shapePoints.forEach((pt, index) => {
+    const dist = Math.hypot(pt.lat - vehicle.lat, pt.lon - vehicle.lon);
+    if (dist < minDistance) {
+      minDistance = dist;
+      closestIdx = index;
     }
-  }
+  });
 
-  // Si no se encuentra por stopId actual, se toma la primera parada con horario futuro
-  if (nextStopIndex === -1 && tripStops.length > 1) {
-    nextStopIndex = 1; // Por defecto tomamos el siguiente tramo inicial
-  }
+  // Tomamos el vector del punto actual al siguiente del trazado
+  const p1 = shapePoints[closestIdx];
+  const p2 = shapePoints[closestIdx + 1] || shapePoints[closestIdx];
 
-  if (nextStopIndex !== -1) {
-    const nextStopData = tripStops[nextStopIndex];
-    const nextStopObj = state.stops[nextStopData.stopId];
+  if (p1.lat === p2.lat && p1.lon === p2.lon) return 0;
 
-    if (nextStopObj && nextStopObj.lat && nextStopObj.lon) {
-      // Calculamos el rumbo desde la posición actual del tren hacia la siguiente estación
-      return calculateBearing(vehicle.lat, vehicle.lon, nextStopObj.lat, nextStopObj.lon);
-    }
-  }
-
-  return 0; // Valor por defecto (Norte) si no se puede inferir
+  return calculateBearing(p1.lat, p1.lon, p2.lat, p2.lon);
 }
 
 // ─── STATUS ────────────────────────────────────────────
@@ -751,6 +768,9 @@ function closeStationPanel() {
   document.getElementById('station-panel').classList.remove('open');
 }
 
+// Variable global para controlar el trazado activo en el mapa
+let activeTripPolyline = null;
+
 // ─── TRAIN PANEL ───────────────────────────────────────
 function openTrainPanel(vehicleId) {
   const v = state.vehicles.find(x => x.id === vehicleId);
@@ -762,31 +782,79 @@ function openTrainPanel(vehicleId) {
   const delay = state.realtimeDelays[v.tripId];
   const delaySecs = delay?.delay || 0;
 
+  // 1. DIBUJAR TRAZADO (SHAPE) EN EL MAPA
+  if (activeTripPolyline) {
+    map.removeLayer(activeTripPolyline);
+    activeTripPolyline = null;
+  }
+
+  if (trip.shapeId && state.shapes[trip.shapeId]) {
+    const points = state.shapes[trip.shapeId].map(pt => [pt.lat, pt.lon]);
+    const routeColor = route.color ? `#${route.color}` : '#3b70a3';
+
+    activeTripPolyline = L.polyline(points, {
+      color: routeColor,
+      weight: 5,
+      opacity: 0.85,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(map);
+
+    // Ajusta la vista para encuadrar todo el recorrido del tren
+    map.fitBounds(activeTripPolyline.getBounds(), { padding: [40, 40] });
+  }
+
+  // 2. ACTUALIZAR PANEL UI
   const badge = document.getElementById('panel-badge');
-  badge.textContent = v.type === 'ld' ? 'Larga Distancia' : 'Cercanías';
-  badge.className = 'train-badge ' + (v.type === 'ld' ? 'badge-ld' : 'badge-cercanias');
+  if (badge) {
+    badge.textContent = v.type === 'ld' ? 'Larga Distancia' : 'Cercanías';
+    badge.className = 'train-badge ' + (v.type === 'ld' ? 'badge-ld' : 'badge-cercanias');
+  }
 
   const sn = route.shortName || '';
   const headsign = trip.headsign || '';
-  document.getElementById('panel-name').textContent = [sn, headsign].filter(Boolean).join(' · ') || v.label || v.id;
-
-  const curStop = state.stops[v.stopId];
-  document.getElementById('panel-sub').textContent = curStop ? `En: ${curStop.name}` : `ID: ${v.tripId || v.id}`;
-
-  const delayChip = document.getElementById('panel-delay');
-  const delayStr = formatDelay(delaySecs);
-  if (!delayStr) {
-    delayChip.textContent = 'A tiempo'; delayChip.className = 'delay-chip delay-ok';
-  } else if (delaySecs < 0) {
-    delayChip.textContent = delayStr + ' adelanto'; delayChip.className = 'delay-chip delay-ok';
-  } else if (delaySecs < 300) {
-    delayChip.textContent = delayStr; delayChip.className = 'delay-chip delay-warn';
-  } else {
-    delayChip.textContent = delayStr; delayChip.className = 'delay-chip delay-bad';
+  const nameEl = document.getElementById('panel-name');
+  if (nameEl) {
+    nameEl.textContent = [sn, headsign].filter(Boolean).join(' · ') || v.label || v.id;
   }
 
+  const curStop = state.stops[v.stopId];
+  const subEl = document.getElementById('panel-sub');
+  if (subEl) {
+    subEl.textContent = curStop ? `En: ${curStop.name}` : `ID: ${v.tripId || v.id}`;
+  }
+
+  const delayChip = document.getElementById('panel-delay');
+  if (delayChip) {
+    const delayStr = formatDelay(delaySecs);
+    if (!delayStr) {
+      delayChip.textContent = 'A tiempo'; 
+      delayChip.className = 'delay-chip delay-ok';
+    } else if (delaySecs < 0) {
+      delayChip.textContent = delayStr + ' adelanto'; 
+      delayChip.className = 'delay-chip delay-ok';
+    } else if (delaySecs < 300) {
+      delayChip.textContent = delayStr; 
+      delayChip.className = 'delay-chip delay-warn';
+    } else {
+      delayChip.textContent = delayStr; 
+      delayChip.className = 'delay-chip delay-bad';
+    }
+  }
+
+  // 3. RENDERIZAR TIMELINE Y MOSTRAR PANEL
   buildStopsTimeline(v, delaySecs);
-  document.getElementById('train-panel').classList.add('open');
+  
+  const panel = document.getElementById('train-panel');
+  if (panel) panel.classList.add('open');
+}
+
+function closeTrainPanel() {
+  if (activeTripPolyline) {
+    map.removeLayer(activeTripPolyline);
+    activeTripPolyline = null;
+  }
+  document.getElementById('train-panel')?.classList.remove('open');
 }
 
 function buildStopsTimeline(v, delaySecs) {
