@@ -704,24 +704,31 @@ function openStationPanel(renfeStation) {
   const now = new Date();
   const upcoming = [];
 
-  const stopId = st.codigo || st.stop_id || st.id;
-const alerts = getAlertsForEntity({ stopId });
-
-const stationAlertsEl = document.getElementById('station-panel-alerts');
-if (stationAlertsEl) {
-  if (alerts.length > 0) {
-    stationAlertsEl.innerHTML = alerts.map(a => {
-      const text = a.descriptionText?.translation?.[0]?.text || 
-                  a.headerText?.translation?.[0]?.text || 
-                  'Incidencia en la estación';
-      return `<div class="alert-box alert-station">ℹ️ ${text}</div>`;
-    }).join('');
-    stationAlertsEl.style.display = 'block';
+  // 🛠️ Búsqueda de alertas adaptada a stopIds o fallback de renfeStation
+  let alerts = [];
+  if (stopIds.length > 0) {
+    const allAlerts = stopIds.flatMap(id => getAlertsForEntity({ stopId: id }));
+    alerts = Array.from(new Set(allAlerts.map(a => JSON.stringify(a)))).map(s => JSON.parse(s));
   } else {
-    stationAlertsEl.innerHTML = '';
-    stationAlertsEl.style.display = 'none';
+    const fallbackId = renfeStation.codigo || renfeStation.CERCANIAS_CODIGO || renfeStation.id;
+    alerts = getAlertsForEntity({ stopId: fallbackId });
   }
-}
+
+  const stationAlertsEl = document.getElementById('station-panel-alerts');
+  if (stationAlertsEl) {
+    if (alerts.length > 0) {
+      stationAlertsEl.innerHTML = alerts.map(a => {
+        const text = a.descriptionText?.translation?.[0]?.text || 
+                    a.headerText?.translation?.[0]?.text || 
+                    'Incidencia en la estación';
+        return `<div class="alert-box alert-station">ℹ️ ${text}</div>`;
+      }).join('');
+      stationAlertsEl.style.display = 'block';
+    } else {
+      stationAlertsEl.innerHTML = '';
+      stationAlertsEl.style.display = 'none';
+    }
+  }
 
   if (stopIds.length > 0) {
     Object.entries(state.stopTimes).forEach(([rawTripId, stops]) => {
