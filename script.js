@@ -163,55 +163,102 @@ const URLS = {
 
 // ─── LOAD STATIC DATA ──────────────────────────────────
 async function loadStaticData() {
+  // 1. Cargamos las paradas/estaciones GTFS y el JSON local en paralelo
   setProgress(10, 'Cargando estaciones de Renfe…');
-
-  const archivosJson = [
-    'estaciones.json'
-    // Añade aquí más JSONs si en el futuro separas por núcleos
-  ];
-
   try {
-    // 1. Descargamos los JSONs en paralelo
-    const respuestas = await Promise.all(
-      archivosJson.map(archivo => fetch(archivo))
-    );
+    const [stopsCercanias, resJson] = await Promise.all([
+      fetchCSV(URLS.stopsCercanias),
+      fetch('estaciones.json')
+    ]);
 
-    // 2. Comprobamos errores 404/500
-    for (const res of respuestas) {
-      if (!res.ok) {
-        throw new Error(`No se pudo cargar ${res.url} (Status: ${res.status})`);
-      }
-    }
-
-    // 3. Convertimos a objeto JavaScript
-    const datosJson = await Promise.all(respuestas.map(res => res.json()));
-
-    // 4. Guardamos el array completo en la variable global
-    RENFE_STATIONS = datosJson.flat();
-
-    // 5. Opcional: Si el resto de tu app (buscadores, filtros) sigue usando `state.stops`
-    RENFE_STATIONS.forEach(estacion => {
-      // Ajusta las propiedades 'codigo', 'nombre', 'lat', 'lng' según la estructura de tu JSON
-      const id = estacion.codigo || estacion.stop_id || estacion.id;
-      state.stops[id] = {
-        name: estacion.nombre || estacion.stop_name,
-        lat: parseFloat(estacion.lat || estacion.stop_lat),
-        lon: parseFloat(estacion.lon || estacion.lng || estacion.stop_lon),
-        type: estacion.tipo || 'renfe'
+    // Mapeamos las paradas del GTFS a state.stops
+    stopsCercanias.forEach(s => {
+      state.stops[s.stop_id] = { 
+        name: s.stop_name, 
+        lat: parseFloat(s.stop_lat), 
+        lon: parseFloat(s.stop_lon), 
+        type: 'cercanias' 
       };
     });
 
-    setProgress(70, 'Procesando estaciones…');
-    console.log(`¡Éxito! Cargarán ${RENFE_STATIONS.length} estaciones.`);
-
-    setProgress(100, 'Carga completa.');
-
-    // 6. AHORA SÍ: Pintamos los marcadores de forma segura porque los datos ya existen en memoria
-    renderStationMarkers();
-
+    // Guardamos las estaciones en la variable global para el mapa
+    if (resJson.ok) {
+      RENFE_STATIONS = await resJson.json();
+      
+      // Aseguramos que las estaciones del JSON también pueblen state.stops si no existían
+      RENFE_STATIONS.forEach(estacion => {
+        const id = estacion.codigo || estacion.stop_id || estacion.id;
+        if (id && !state.stops[id]) {
+          state.stops[id] = {
+            name: estacion.nombre || estacion.stop_name || estacion.DESCRIPCION,
+            lat: parseFloat(estacion.lat || estacion.stop_lat || estacion.la || estacion.LATITUD),
+            lon: parseFloat(estacion.lon || estacion.lng || estacion.stop_lon || estacion.lo || estacion.LONGITUD),
+            type: 'cercanias'
+          };
+        }
+      });
+    }
   } catch (error) {
-    console.error("Error crítico cargando las estaciones:", error);
+    console.error('Error cargando las paradas/estaciones:', error);
   }
+
+  // 2. Cargamos las rutas GTFS
+  setProgress(35, 'Cargando rutas…');
+  try {
+    const routesCercanias = await fetchCSV(URLS.routesCercanias);
+    routesCercanias.forEach(r => {
+      state.routes[r.route_id] = { 
+        shortName: r.route_short_name, 
+        longName: r.route_long_name, 
+        color: r.route_color, 
+        type: 'cercanias' 
+      };
+    });
+  } catch (error) {
+    console.warn('Error cargando routes:', error);
+  }
+
+  // 3. Cargamos los viajes GTFS
+  setProgress(60, 'Cargando viajes…');
+  try {
+    const tripsCercanias = await fetchCSV(URLS.tripsCercanias);
+    tripsCercanias.forEach(t => {
+      state.trips[t.trip_id] = { 
+        routeId: t.route_id, 
+        headsign: t.trip_headsign, 
+        type: 'cercanias' 
+      };
+    });
+  } catch (error) {
+    console.warn('Error cargando trips:', error);
+  }
+
+  // 4. Cargamos los horarios por parada GTFS
+  setProgress(80, 'Cargando horarios…');
+  try {
+    const stCercanias = await fetchCSV(URLS.stopTimescercanias);
+    stCercanias.forEach(st => {
+      if (!state.stopTimes[st.trip_id]) state.stopTimes[st.trip_id] = [];
+      state.stopTimes[st.trip_id].push({ 
+        stopId: st.stop_id, 
+        arrival: st.arrival_time, 
+        departure: st.departure_time, 
+        seq: parseInt(st.stop_sequence) || 0 
+      });
+    });
+
+    // Ordenamos las paradas de cada viaje secuencialmente
+    Object.keys(state.stopTimes).forEach(tid => {
+      state.stopTimes[tid].sort((a, b) => a.seq - b.seq);
+    });
+  } catch (e) {
+    console.warn('Error cargando stop_times:', e);
+  }
+
+  setProgress(100, 'Carga completa.');
+
+  // 5. Renderizamos los marcadores de las estaciones en el mapa
+  renderStationMarkers();
 }
 // ─── LOAD REALTIME ─────────────────────────────────────
 async function loadRealtime() {
