@@ -52,6 +52,7 @@ const state = {
   shapes: {},
   trips: {},
   routes: {},
+  state: {},
   realtimeDelays: {},
   vehicles: [],
   markers: {},
@@ -291,7 +292,7 @@ async function loadRealtime() {
       fetchJSON(URLS.tripUpdatesCercanias).catch(() => ({ entity: [] })),
       fetchJSON(URLS.vehiclesLD).catch(() => ({ entity: [] })),
       fetchJSON(URLS.tripUpdatesLD).catch(() => ({ entity: [] })),
-      fetchJSON(URLS.alerts).catch(() => ({ entity: [] })),
+      fetchJSON(URLS.alerts).catch(() => []),
     ]);
 
     // Si todos han fallado o devuelto vacíos por culpa de un fallo del servidor, salimos sin romper nada
@@ -300,6 +301,7 @@ async function loadRealtime() {
       return;
     }
 
+    // 1. PROCESAR RETRASOS (TRIP UPDATES)
     state.realtimeDelays = {};
     [...(tuJson.entity || []), ...(tuldJson.entity || [])].forEach(e => {
       if (e.tripUpdate) {
@@ -316,6 +318,7 @@ async function loadRealtime() {
       }
     });
 
+    // 2. PROCESAR VEHÍCULOS
     const newVehicles = [];
     (vcJson.entity || []).forEach(e => {
       if (e.vehicle?.position) {
@@ -341,7 +344,7 @@ async function loadRealtime() {
     });
     state.vehicles = newVehicles;
 
-    // 🛡️ Control de seguridad para los contadores (Evita errores si los borraste del HTML)
+    // Actualizar contadores del DOM
     const cCount = newVehicles.filter(v => v.type === 'cercanias').length;
     const ldCount = newVehicles.filter(v => v.type === 'ld').length;
     
@@ -350,17 +353,22 @@ async function loadRealtime() {
     if (elCountCercanias) elCountCercanias.textContent = cCount || '0';
     if (elCountLd) elCountLd.textContent = ldCount || '0';
 
-    // Alerts
-    const alerts = alertJson.entity || [];
-    const activeAlerts = alerts.filter(a => a.alert?.headerText);
+    // 3. PROCESAR ALERTAS / INCIDENCIAS
+    // Soportamos tanto si el JSON viene como un array directo o envuelto en .entity
+    const rawAlerts = Array.isArray(alertJson) ? alertJson : (alertJson.entity || []);
+    state.alerts = rawAlerts.map(e => e.alert || e).filter(Boolean);
+
+    // Banner superior
     const banner = document.getElementById('alert-banner');
-    
-    if (activeAlerts.length > 0 && banner) {
-      const a = activeAlerts[0].alert;
-      const txt = a.headerText?.translation?.[0]?.text || 'Incidencias activas en la red';
+    if (state.alerts.length > 0 && banner) {
+      const a = state.alerts[0];
+      const txt = a.headerText?.translation?.[0]?.text || 
+                  a.descriptionText?.translation?.[0]?.text || 
+                  'Incidencias activas en la red';
+      
       const elAlertText = document.getElementById('alert-text');
       if (elAlertText) {
-        elAlertText.textContent = `${activeAlerts.length} incidencia${activeAlerts.length > 1 ? 's' : ''}: ${txt.slice(0, 80)}${txt.length > 80 ? '…' : ''}`;
+        elAlertText.textContent = `${state.alerts.length} incidencia${state.alerts.length > 1 ? 's' : ''}: ${txt.slice(0, 80)}${txt.length > 80 ? '…' : ''}`;
       }
       banner.classList.add('visible');
       setTimeout(() => banner.classList.remove('visible'), 8000);
@@ -368,10 +376,26 @@ async function loadRealtime() {
 
     updateStatus('ok', `${newVehicles.length} trenes · ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`);
     renderMarkers();
+
   } catch(err) {
     console.error('Realtime error controlado:', err);
     updateStatus('error', 'Error al conectar — reintentando…');
   }
+}
+
+function getAlertsForEntity({ routeId, stopId, tripId }) {
+  if (!state.alerts || state.alerts.length === 0) return [];
+
+  return state.alerts.filter(alert => {
+    if (!alert.informedEntity || !Array.isArray(alert.informedEntity)) return false;
+
+    return alert.informedEntity.some(entity => {
+      if (routeId && entity.routeId === routeId) return true;
+      if (stopId && String(entity.stopId) === String(stopId)) return true;
+      if (tripId && entity.tripId === tripId) return true;
+      return false;
+    });
+  });
 }
 
 function calculateBearing(lat1, lon1, lat2, lon2) {
@@ -395,7 +419,6 @@ function getTrainBearing(vehicle) {
   const trip = state.trips?.[vehicle?.tripId];
   const shapeId = trip?.shapeId;
 
-  // Si state.shapes o el shapeId no existen todavía, retornamos 0 de forma segura
   if (!state.shapes || !shapeId || !state.shapes[shapeId]) {
     return 0;
   }
@@ -419,7 +442,9 @@ function getTrainBearing(vehicle) {
 
   if (!p1 || !p2 || (p1.lat === p2.lat && p1.lon === p2.lon)) return 0;
 
-  return calculateBearing(p1.lat, p1.lon, p2.lat, p2.lon);
+  // 🔄 Sumamos 180 grados y aplicamos el módulo % 360 para invertir la flecha
+  const baseBearing = calculateBearing(p1.lat, p1.lon, p2.lat, p2.lon);
+  return (baseBearing + 180) % 360;
 }
 
 // ─── STATUS ────────────────────────────────────────────
@@ -679,6 +704,25 @@ function openStationPanel(renfeStation) {
   const now = new Date();
   const upcoming = [];
 
+  const stopId = st.codigo || st.stop_id || st.id;
+const alerts = getAlertsForEntity({ stopId });
+
+const stationAlertsEl = document.getElementById('station-panel-alerts');
+if (stationAlertsEl) {
+  if (alerts.length > 0) {
+    stationAlertsEl.innerHTML = alerts.map(a => {
+      const text = a.descriptionText?.translation?.[0]?.text || 
+                  a.headerText?.translation?.[0]?.text || 
+                  'Incidencia en la estación';
+      return `<div class="alert-box alert-station">ℹ️ ${text}</div>`;
+    }).join('');
+    stationAlertsEl.style.display = 'block';
+  } else {
+    stationAlertsEl.innerHTML = '';
+    stationAlertsEl.style.display = 'none';
+  }
+}
+
   if (stopIds.length > 0) {
     Object.entries(state.stopTimes).forEach(([rawTripId, stops]) => {
       const tripId = String(rawTripId).trim();
@@ -783,6 +827,24 @@ function openTrainPanel(vehicleId) {
   const route = state.routes[trip.routeId] || {};
   const delay = state.realtimeDelays[v.tripId];
   const delaySecs = delay?.delay || 0;
+
+const alerts = getAlertsForEntity({ routeId: trip.routeId, tripId: v.tripId });
+
+const alertsContainer = document.getElementById('panel-alerts');
+if (alertsContainer) {
+  if (alerts.length > 0) {
+    alertsContainer.innerHTML = alerts.map(a => {
+      const text = a.descriptionText?.translation?.[0]?.text || 
+                  a.headerText?.translation?.[0]?.text || 
+                  'Aviso en la línea';
+      return `<div class="alert-box alert-warning">⚠️ ${text}</div>`;
+    }).join('');
+    alertsContainer.style.display = 'block';
+  } else {
+    alertsContainer.innerHTML = '';
+    alertsContainer.style.display = 'none';
+  }
+}
 
   // 1. DIBUJAR TRAZADO (SHAPE) EN EL MAPA
   if (activeTripPolyline) {
