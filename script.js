@@ -678,7 +678,7 @@ function findStopIdsForStation(renfeStation) {
 
 // ─── STATION PANEL ─────────────────────────────────────
 function openStationPanel(renfeStation) {
-  document.getElementById('train-panel').classList.remove('open');
+  document.getElementById('train-panel')?.classList.remove('open');
   state.selectedVehicle = null;
 
   const stName = renfeStation.n || renfeStation.DESCRIPCION || '';
@@ -689,17 +689,24 @@ function openStationPanel(renfeStation) {
 
   document.getElementById('station-panel-name').textContent = stName;
   const badge = document.getElementById('station-panel-badge');
-  if (stCe === 'SI') {
-    badge.textContent = 'Cercanías'; badge.className = 'train-badge badge-cercanias';
-  } else if (stFe === 'SI') {
-    badge.textContent = 'FEVE'; badge.className = 'train-badge badge-cercanias';
-  } else {
-    badge.textContent = 'Estación'; badge.className = 'train-badge badge-ld';
+  if (badge) {
+    if (stCe === 'SI') {
+      badge.textContent = 'Cercanías'; badge.className = 'train-badge badge-cercanias';
+    } else if (stFe === 'SI') {
+      badge.textContent = 'FEVE'; badge.className = 'train-badge badge-cercanias';
+    } else {
+      badge.textContent = 'Estación'; badge.className = 'train-badge badge-ld';
+    }
   }
-  document.getElementById('station-panel-sub').textContent = `${stPo} · ${stPr}`;
+  
+  const subEl = document.getElementById('station-panel-sub');
+  if (subEl) subEl.textContent = `${stPo} · ${stPr}`;
 
-  let stopIds = findStopIdsForStation(renfeStation) || [];
-  stopIds = stopIds.map(id => String(id).trim());
+  // 🛠️ 1. Normalizador de IDs para evitar descalces por ceros a la izquierda o espacios
+  const cleanId = (id) => String(id || '').trim().replace(/^0+/, '');
+
+  let rawStopIds = findStopIdsForStation(renfeStation) || [];
+  const stopIds = rawStopIds.map(id => cleanId(id));
 
   const now = new Date();
   const upcoming = [];
@@ -730,22 +737,39 @@ function openStationPanel(renfeStation) {
     }
   }
 
-  if (stopIds.length > 0) {
+  // 🛠️ 2. Búsqueda de trenes próximos con compatibilidad de claves
+  if (stopIds.length > 0 && state.stopTimes) {
     Object.entries(state.stopTimes).forEach(([rawTripId, stops]) => {
       const tripId = String(rawTripId).trim();
+      
+      if (!Array.isArray(stops)) return;
+
       stops.forEach(st => {
-        if (!stopIds.includes(String(st.stopId).trim())) return;
-        const arr = gtfsTimeToday(st.arrival);
+        // Normalización del ID de parada del GTFS
+        const currentStopId = cleanId(st.stopId || st.stop_id);
+        if (!stopIds.includes(currentStopId)) return;
+
+        // Comprobación de la propiedad del tiempo (arrival vs arrival_time)
+        const rawTime = st.arrival || st.arrival_time || st.departure || st.departure_time;
+        const arr = gtfsTimeToday(rawTime);
         if (!arr) return;
+
         const delayInfo = state.realtimeDelays[tripId] || { delay: 0 };
         const delaySecs = delayInfo.delay || 0;
         const arrUpdated = new Date(arr.getTime() + delaySecs * 1000);
+        
         const diffMins = (arrUpdated - now) / 60000;
-        if (diffMins < -2 || diffMins > 180) return;
+        // Filtro de ventana: desde 5 min antes hasta 180 min (3 horas) después
+        if (diffMins < -5 || diffMins > 180) return;
+
         let trip = state.trips[tripId];
-        if (!trip) { const cleanId = tripId.split('-')[0].split('_')[0].trim(); trip = state.trips[cleanId]; }
+        if (!trip) { 
+          const cleanTripKey = tripId.split('-')[0].split('_')[0].trim(); 
+          trip = state.trips[cleanTripKey]; 
+        }
+        
         const finalTrip = trip || {};
-        const route = state.routes[finalTrip.routeId] || {};
+        const route = state.routes[finalTrip.routeId || finalTrip.route_id] || {};
         upcoming.push({ tripId, st, arr, arrUpdated, delaySecs, trip: finalTrip, route });
       });
     });
@@ -756,8 +780,8 @@ function openStationPanel(renfeStation) {
   const seenRows = new Set();
   const uniqueUpcoming = upcoming.filter(item => {
     const type = (item.trip.type || 'ld');
-    const routeLabel = (item.route.shortName || '').slice(0, 4) || (type === 'ld' ? 'LD' : 'C');
-    const dest = fixUtf8String(item.trip.headsign || item.route.longName || item.tripId);
+    const routeLabel = (item.route.shortName || item.route.short_name || '').slice(0, 4) || (type === 'ld' ? 'LD' : 'C');
+    const dest = fixUtf8String(item.trip.headsign || item.trip.trip_headsign || item.route.longName || item.tripId);
     const rowKey = `${routeLabel}-${dest}-${formatTime(item.arr)}`;
     if (seenRows.has(rowKey)) return false;
     seenRows.add(rowKey);
@@ -779,18 +803,20 @@ function openStationPanel(renfeStation) {
     uniqueUpcoming.slice(0, 20).forEach(item => {
       const { trip, route, arr, arrUpdated, delaySecs, tripId } = item;
       const type = (trip.type || 'ld');
-      const routeLabel = (route.shortName || '').slice(0, 4) || (type === 'ld' ? 'LD' : 'C');
-      const dest = fixUtf8String(trip.headsign || route.longName || `Tren ${tripId}`);
+      const routeLabel = (route.shortName || route.short_name || '').slice(0, 4) || (type === 'ld' ? 'LD' : 'C');
+      const dest = fixUtf8String(trip.headsign || trip.trip_headsign || route.longName || `Tren ${tripId}`);
       const origTime = formatTime(arr);
       const updTime = Math.abs(delaySecs) >= 30 ? formatTime(arrUpdated) : null;
       const delayStr = formatDelay(delaySecs);
       const diffMins = Math.round((arrUpdated - now) / 60000);
       const inStr = diffMins <= 0 ? 'Ahora' : diffMins === 1 ? 'en 1 min' : `en ${diffMins} min`;
+      
       let delayBadgeHtml = '';
       if (delayStr) {
         const cls = delaySecs > 0 ? 'delay-warn' : 'delay-ok';
         delayBadgeHtml = `<span class="station-delay-badge ${cls}">${delayStr}</span>`;
       }
+      
       html += `<div class="station-train-item">
         <div class="station-route-badge ${type === 'ld' ? 'ld' : 'cercanias'}">${routeLabel}</div>
         <div class="station-train-info">
@@ -808,11 +834,11 @@ function openStationPanel(renfeStation) {
     list.innerHTML = html;
   }
 
-  document.getElementById('station-panel').classList.add('open');
+  document.getElementById('station-panel')?.classList.add('open');
 
   const lat = renfeStation.la || parseFloat(renfeStation.LATITUD);
   const lon = renfeStation.lo || parseFloat(renfeStation.LONGITUD);
-  if (!isNaN(lat) && !isNaN(lon)) {
+  if (!isNaN(lat) && !isNaN(lon) && typeof map !== 'undefined') {
     map.flyTo([lat, lon], Math.max(map.getZoom(), 12), { duration: 0.8 });
   }
 }
