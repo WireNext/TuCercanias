@@ -352,6 +352,57 @@ async function loadRealtime() {
   }
 }
 
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const toRad = deg => (deg * Math.PI) / 180;
+  const toDeg = rad => (rad * 180) / Math.PI;
+
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+
+  const brng = toDeg(Math.atan2(y, x));
+  return (brng + 360) % 360; // Normaliza el ángulo entre 0º y 360º
+}
+
+function getTrainBearing(vehicle) {
+  // Si los datos en tiempo real ya traen bearing/heading válido, lo usamos
+  if (typeof vehicle.bearing === 'number' && vehicle.bearing !== 0) {
+    return vehicle.bearing;
+  }
+
+  const tripStops = state.stopTimes[vehicle.tripId];
+  if (!tripStops || tripStops.length === 0) return 0;
+
+  // Buscar el índice de la parada donde está el tren o la última superada
+  const currentStopId = vehicle.stopId;
+  let nextStopIndex = -1;
+
+  if (currentStopId) {
+    const currentIndex = tripStops.findIndex(s => s.stopId === currentStopId);
+    if (currentIndex !== -1 && currentIndex < tripStops.length - 1) {
+      nextStopIndex = currentIndex + 1;
+    }
+  }
+
+  // Si no se encuentra por stopId actual, se toma la primera parada con horario futuro
+  if (nextStopIndex === -1 && tripStops.length > 1) {
+    nextStopIndex = 1; // Por defecto tomamos el siguiente tramo inicial
+  }
+
+  if (nextStopIndex !== -1) {
+    const nextStopData = tripStops[nextStopIndex];
+    const nextStopObj = state.stops[nextStopData.stopId];
+
+    if (nextStopObj && nextStopObj.lat && nextStopObj.lon) {
+      // Calculamos el rumbo desde la posición actual del tren hacia la siguiente estación
+      return calculateBearing(vehicle.lat, vehicle.lon, nextStopObj.lat, nextStopObj.lon);
+    }
+  }
+
+  return 0; // Valor por defecto (Norte) si no se puede inferir
+}
+
 // ─── STATUS ────────────────────────────────────────────
 function updateStatus(type, msg) {
   const dot = document.getElementById('status-dot');
@@ -451,14 +502,12 @@ function renderMarkers() {
     shown.add(v.id);
     const label = getRouteLabel(v.tripId, v.type);
     
-    // Obtenemos el rumbo/bearing si viene en los datos del GPS del tren (por defecto 0º = Norte)
-    const bearing = v.bearing || v.heading || 0;
+    // 🎯 Calculamos e inferimos el rumbo dinámicamente
+    const bearing = getTrainBearing(v);
 
     if (state.markers[v.id]) {
-      // Actualizar posición geométrica
       state.markers[v.id].setLatLng([v.lat, v.lon]);
       
-      // Actualizamos icono con el nuevo rumbo y etiqueta
       const newIcon = L.divIcon({
         className: 'm3-train-marker-wrapper',
         html: createTrainSvgIcon(label, v.type, bearing),
@@ -468,7 +517,6 @@ function renderMarkers() {
       state.markers[v.id].setIcon(newIcon);
 
     } else {
-      // Crear marcador por primera vez con el icono de flecha
       const icon = L.divIcon({
         className: 'm3-train-marker-wrapper',
         html: createTrainSvgIcon(label, v.type, bearing),
@@ -487,12 +535,19 @@ function renderMarkers() {
         e.originalEvent?.stopPropagation?.();
         openTrainPanel(v.id);
       });
-      marker.on('mousedown', (e) => { e.originalEvent?.stopPropagation?.(); });
-      marker.on('touchstart', (e) => { e.originalEvent?.stopPropagation?.(); });
 
       state.markers[v.id] = marker;
     }
   });
+
+  // Limpieza de marcadores inactivos
+  Object.keys(state.markers).forEach(id => {
+    if (!shown.has(id)) {
+      map.removeLayer(state.markers[id]);
+      delete state.markers[id];
+    }
+  });
+}
 
   // Eliminar marcadores ocultos
   Object.keys(state.markers).forEach(id => {
